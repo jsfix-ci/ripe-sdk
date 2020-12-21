@@ -163,6 +163,17 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAn
             this.loadedScene.animations.push(asset.animations[0]);
         }
     } else {
+        // adds embedded animations in the file to animations
+        // array
+        for (const anim in asset.animations) {
+            const animName = asset.animations[anim].name;
+
+            // only load animations that have a name
+            if (!animName) continue;
+
+            this.animations[animName] = asset.animations[anim];
+        }
+
         // for the glTF assets a small hack is required so
         // the asset in question is the scene, this is required
         // because glTF is a packaging format for multiple assets
@@ -170,9 +181,8 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAn
         if (type === "gltf") asset = asset.scene;
 
         // updates the loaded scene variable with the assets
-        // that has just been loaded (and resets animations)
+        // that have just been loaded
         this.loadedScene = asset;
-        this.loadedScene.animations = [];
     }
 
     // returns the asset that has been loaded to the caller

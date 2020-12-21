@@ -722,8 +722,6 @@ ripe.CSR.prototype._initializeRenderer = function() {
         alpha: true
     });
 
-    this.renderer.info.autoReset = false;
-
     const width = this.element.getBoundingClientRect().width;
     const height = this.element.getBoundingClientRect().height;
 
@@ -909,18 +907,12 @@ ripe.CSR.prototype._getAnimationByName = function(name) {
  */
 ripe.CSR.prototype._performAnimation = function(animationName) {
     const animation = this._getAnimationByName(animationName);
+    const mixer = new this.library.AnimationMixer(this.assetManager.loadedScene);
 
     if (!animation) return;
 
-    animation.optimize();
-
-    const action = this.mixer.clipAction(animation);
-    action.clampWhenFinished = true;
-    action.loop = this.library.LoopOnce;
-    action.setEffectiveTimeScale(1);
-
     const clock = new this.library.Clock();
-    clock.autoStart = false;
+    const action = mixer.clipAction(animation);
 
     // initialize variables
     clock.start();
@@ -947,7 +939,7 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
         }
 
         delta = clock.getDelta();
-        this.mixer.update(delta);
+        mixer.update(delta);
 
         this.render();
 
