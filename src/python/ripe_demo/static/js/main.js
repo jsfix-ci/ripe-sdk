@@ -357,10 +357,14 @@ window.onload = function() {
                 dat: window.dat,
                 postProcessingLibrary: window.POSTPROCESSING,
 
+                // allows raycast operations during animation, defaults to false
+                enableRaycastAnimation: true,
+
                 assets: {
                     // model data is stored in `vyner_hitop.js` temporarily, is meant to be a JSON
                     // that is downloaded, or present in a spec file
-                    config: window.modelData,
+                    // eslint-disable-next-line no-undef
+                    config: modelData,
 
                     // the relative path with the location of the assets
                     path: "/static/assets/",

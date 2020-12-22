@@ -287,7 +287,6 @@ ripe.ConfiguratorCSR.prototype.rotate = async function(options, isAnimated = tru
     // simple rotate, without applying any transitions
     if (!isAnimated) {
         this.renderer.rotate(options);
-        this.renderer.render();
         this.updateViewPosition(newPos, newView);
         return;
     }

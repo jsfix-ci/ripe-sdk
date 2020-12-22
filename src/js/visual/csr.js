@@ -73,6 +73,9 @@ ripe.CSR = function(owner, element, options) {
     this._wireframe = false;
 
     this.gui = new ripe.GUI(this, options);
+
+    this.enableRaycastAnimation =
+        options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
 };
 
 ripe.CSR.prototype = ripe.build(ripe.Observable.prototype);
@@ -114,6 +117,7 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
     this.scene = new this.library.Scene();
     this.raycaster = new this.library.Raycaster();
 
+    this._createLoops();
     this._initializeLights();
     this._initializeCameras();
     this._initializeRenderer();
@@ -142,8 +146,60 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
     // otherwise runs the "typical" render operation
     const executeAnimation = hasAnimation && this.introAnimation;
     if (executeAnimation) this._performAnimation(this.introAnimation);
-    else this.render();
 };
+
+/**
+ * Creates custom render and raycasting loops for increased performance. 
+ * For the render loop, only render when specifically told to update, 
+ * for the raycasting loop, only raycast when mouse event was registered,
+ * and after a certain threshold of time has passed since the previous 
+ * raycast operation.
+ */
+ripe.CSR.prototype._createLoops = function () {
+    this.renderUpdate = false;
+    this.forceStopRender = false;
+    
+    this.renderLoop = () => {
+        if (this.renderUpdate && !this.forceStopRender) {
+            this.composer.render();
+        }
+
+        this.renderUpdate = false;
+
+        requestAnimationFrame(this.renderLoop);
+    };
+
+    this.raycastClock = new this.library.Clock();
+    this.raycastClock.start();
+    this.needsRaycastUpdate = false;
+    this.raycastEvent = null;
+    // number of seconds separating each call to trigger a raycast
+    this.raycastThreshold = 0.2;
+    
+    this.raycastLoop = () => {
+        // time the last "getDelta" was called
+        const previousTime = this.raycastClock.oldTime;
+        const delta = this.raycastClock.getDelta();
+
+        let canRaycast = this.raycastEvent && delta > this.raycastThreshold && !this.element.classList.contains("no-raycast");
+        
+        if (canRaycast) {
+            this._attemptRaycast(this.raycastEvent);
+            this.raycastEvent = null;
+        } else {
+            // if no raycast was made, reset the old time to
+            // not take into account the latest "getDelta"
+            this.raycastClock.oldTime = previousTime;
+        }
+
+        requestAnimationFrame(this.raycastLoop);
+    };
+
+    // begin render loop
+    requestAnimationFrame(this.renderLoop);
+    // begin raycast loop for increased performance
+    requestAnimationFrame(this.raycastLoop);
+}
 
 /**
  * Function to dispose all resources created by the renderer,
@@ -214,13 +270,6 @@ ripe.CSR.prototype.updateInitials = function(operation, meshes) {
 };
 
 /**
- * Chooses the correct renderer depending on whether post processing is used.
- */
-ripe.CSR.prototype.render = function() {
-    this.composer.render();
-};
-
-/**
  * @ignore
  */
 ripe.CSR.prototype.updateSize = function() {
@@ -272,9 +321,6 @@ ripe.CSR.prototype.lowlight = function() {
     if (this.intersectedPart === null) {
         return;
     }
-
-    // adds the no-raycast flag to improve performance
-    this.element.classList.add("no-raycast");
 
     const material = this.assetManager.meshes[this.intersectedPart].material;
 
@@ -333,11 +379,14 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
         currentG = ripe.easing[this.highlightEasing](pos, startG, endColor.g);
         currentB = ripe.easing[this.highlightEasing](pos, startB, endColor.b);
 
-        this.render();
-
-        if (pos < 1) requestAnimationFrame(changeHighlightTransition);
-        else if (this.element.classList.contains("no-raycast")) {
-            this.element.classList.remove("no-raycast");
+        if (pos < 1) {
+            this.renderUpdate = true;
+            requestAnimationFrame(changeHighlightTransition);
+        } else {
+            this.renderUpdate = false;
+            if (this.element.classList.contains("no-raycast")) {
+                this.element.classList.remove("no-raycast");
+            }
         }
     };
 
@@ -379,6 +428,9 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     // renders current state
     this.renderer.setRenderTarget(this.previousSceneFBO);
     this.renderer.clear();
+
+    // stop current rendering
+    this.forceStopRender = true;
 
     if (!isCrossfading || type === "rotation") this.renderer.render(this.scene, this.camera);
 
@@ -446,7 +498,7 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
             this.assetManager.disposeMesh(quad);
 
             // renders scene with composer
-            this.render();
+            this.forceStopRender = false;
 
             return;
         }
@@ -484,6 +536,7 @@ ripe.CSR.prototype.rotate = function(options) {
     this.camera.position.z = distance * Math.cos((Math.PI / 180) * options.rotationX);
 
     this.camera.lookAt(this.cameraTarget);
+    this.renderUpdate = true;
 };
 
 ripe.CSR.prototype._setCameraOptions = function(options = {}) {
@@ -581,13 +634,13 @@ ripe.CSR.prototype._registerHandlers = function() {
             return;
         }
 
-        self._attemptRaycast(event, "move");
+        self.raycastEvent = event;
     });
 
     area.addEventListener("click", function(event) {
         event = ripe.fixEvent(event);
 
-        if (!self.element.classList.contains("drag")) self._attemptRaycast(event, "click");
+        if (!self.element.classList.contains("drag")) self.raycastEvent = event;
     });
 
     window.onresize = () => {
@@ -936,15 +989,28 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
 
             clock.start();
             action.play();
+            
+            if (!this.enableRaycastAnimation) {
+                // adds the no-raycast flag to improve performance
+                this.element.classList.add("no-raycast");
+            }
+    
         }
 
         delta = clock.getDelta();
         mixer.update(delta);
 
-        this.render();
-
-        if (!action.paused) requestAnimationFrame(doAnimation);
-        else clock.stop();
+        if (!action.paused) {
+            this.renderUpdate = true;
+            requestAnimationFrame(doAnimation);
+        } else {
+            this.renderUpdate = false;
+            clock.stop();
+            if (!this.enableRaycastAnimation) {
+                // adds the no-raycast flag to improve performance
+                this.element.classList.remove("no-raycast");
+            }
+        }
     };
 
     requestAnimationFrame(doAnimation);
@@ -997,7 +1063,7 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // in case the cast unique identifier is no longer the same it means
     // that we should ignore it's result (as this is casting is outdated)
     if (castId !== this._castId) return;
-
+    
     // in case no intersection occurs then a lowlight is performed (click outside scope)
     // and the control flow is immediately returned to caller method
     if (intersects.length === 0) {
