@@ -413,7 +413,7 @@ window.onload = function() {
                     materialEasing: "easeInOutQuad",
                     crossfadeEasing: "easeInOutQuad",
                     initialsPlacement: "center",
-                    // introAnimation: "santos_explode.glb",
+                    introAnimation: "santos_explode.glb",
                     environment: "chinese_garden",
                     maskOpacity: 0.7
                 },

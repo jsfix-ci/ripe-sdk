@@ -123,7 +123,7 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAn
     let path = this.assetsPath + this.owner.brand.toLowerCase();
 
     if (isAnimation) {
-        path += "/animations/" + filename;
+        path += "/animations/" + this.owner.model.toLowerCase() + "/" + filename;
     } else {
         path = this.owner.getMeshUrl({
             variant: "$base"
@@ -606,7 +606,7 @@ ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer
     this.environmentTexture = this.pmremGenerator.fromEquirectangular(texture).texture;
 
     scene.environment = this.environmentTexture;
-    
+    scene.background = this.environmentTexture;
 };
 
 /**
