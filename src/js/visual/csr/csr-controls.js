@@ -6,8 +6,9 @@ if (
         (typeof navigator !== "undefined" && navigator.product === "ReactNative"))
 ) {
     // eslint-disable-next-line no-redeclare
-    var base = require("../base");
+    const base = require("../../base");
     // eslint-disable-next-line no-redeclare
+    // eslint-disable-next-line no-var
     var ripe = base.ripe;
 }
 
@@ -19,7 +20,7 @@ if (
  * @param {Object} element The HTML element that contains the configurator.
  * @param {Object} options The options to be used to configure the controls.
  */
-ripe.OrbitalControls = function(configurator, element, options) {
+ripe.CSRControls = function(configurator, element, options) {
     this.configurator = configurator;
     this.element = element;
 
@@ -38,9 +39,9 @@ ripe.OrbitalControls = function(configurator, element, options) {
     this.rotationEasing = "easeInOutQuad";
 
     this.cameraDistance = 100;
-    this._baseCameraDistance = 100;
     this.maxDistance = 1000;
     this.minDistance = 0;
+    this._baseCameraDistance = 100;
 
     this.lockRotation = "";
 
@@ -48,24 +49,23 @@ ripe.OrbitalControls = function(configurator, element, options) {
     this.canDrift = false;
     this.driftDuration = 200;
 
-    this._previousEvent = null;
     this.canZoom = true;
+    this._previousEvent = null;
 
     this._setControlsOptions(options);
-
     this._registerHandlers();
 };
 
-ripe.OrbitalControls.prototype = ripe.build(ripe.Observable.prototype);
-ripe.OrbitalControls.prototype.constructor = ripe.OrbitalControls;
+ripe.CSRControls.prototype = ripe.build(ripe.Observable.prototype);
+ripe.CSRControls.prototype.constructor = ripe.CSRControls;
 
 /**
  * Sets the controls parameters based on options struct.
  *
- * @param {*} options The struct containing the parameters that will dictate the
+ * @param {Object} options The struct containing the parameters that will dictate the
  * controls' behaviour.
  */
-ripe.OrbitalControls.prototype._setControlsOptions = function(options) {
+ripe.CSRControls.prototype._setControlsOptions = function(options) {
     if (options.camera) {
         this.cameraDistance =
             options.camera.distance === undefined ? this.cameraDistance : options.camera.distance;
@@ -125,7 +125,7 @@ ripe.OrbitalControls.prototype._setControlsOptions = function(options) {
 /**
  * @ignore
  */
-ripe.OrbitalControls.prototype.updateOptions = async function(options) {
+ripe.CSRControls.prototype.updateOptions = async function(options) {
     this.element = options.element === undefined ? this.element : options.element;
 
     const startingPosition =
@@ -137,7 +137,7 @@ ripe.OrbitalControls.prototype.updateOptions = async function(options) {
 /**
  * Registers the handlers that will listen to events happening inside the configurator element.
  */
-ripe.OrbitalControls.prototype._registerHandlers = function() {
+ripe.CSRControls.prototype._registerHandlers = function() {
     // captures the current context to be used inside clojures
     const self = this;
 
@@ -284,9 +284,9 @@ ripe.OrbitalControls.prototype._registerHandlers = function() {
  * Updates the base angles based on either the current angles, or the parameters in the options
  * structure.
  *
- * @param {*} options If specified, update the base and current angles based on the options.
+ * @param {Object} options If specified, update the base and current angles based on the options.
  */
-ripe.OrbitalControls.prototype._updateAngles = function(options = {}) {
+ripe.CSRControls.prototype._updateAngles = function(options = {}) {
     const newX = options.rotationX === undefined ? this.currentHorizontalRot : options.rotationX;
     const newY = options.rotationY === undefined ? this.currentVerticalRot : options.rotationY;
 
@@ -303,37 +303,39 @@ ripe.OrbitalControls.prototype._updateAngles = function(options = {}) {
  * * Converts a position of the element to a rotation that can be applied to
  * the model or the camera.
  *
- * @param {*} position The position that is used for the conversion.
+ * @param {Number} position The position that is used for the conversion.
+ * @returns {Number} The normalized rotation (degrees) for the given position.
  */
-ripe.OrbitalControls.prototype._positionToRotation = function(position) {
+ripe.CSRControls.prototype._positionToRotation = function(position) {
     return (position / 24) * 360;
 };
 
 /**
  * Converts a rotation to a position.
  *
- * @param {*} rotationX The rotation that is used for the conversion.
+ * @param {Number} rotationX The rotation that is used for the conversion.
+ * @returns {Number} The normalized position for the provided rotation (degrees).
  */
-ripe.OrbitalControls.prototype._rotationToPosition = function(rotationX) {
+ripe.CSRControls.prototype._rotationToPosition = function(rotationX) {
     return (this._validatedAngle(parseInt(rotationX)) / 360) * 24;
 };
 
 /**
  * Maps a vertical rotation to a view.
  *
- * @param {*} rotationY The rotation to be converted.
+ * @param {Number} rotationY The rotation to be converted into a view.
+ * @returns {String} The normalized view value for the given Y rotation.
  */
-ripe.OrbitalControls.prototype._rotationToView = function(rotationY) {
+ripe.CSRControls.prototype._rotationToView = function(rotationY) {
     if (rotationY > 85) return "top";
     if (rotationY < -85) return "bottom";
-
     return "side";
 };
 
 /**
  * @ignore
  */
-ripe.OrbitalControls.prototype._parseDrag = function() {
+ripe.CSRControls.prototype._parseDrag = function() {
     // retrieves the last recorded mouse position
     // and the current one and calculates the
     // drag movement made by the user
@@ -385,7 +387,7 @@ ripe.OrbitalControls.prototype._parseDrag = function() {
 /**
  * Called from the configurator, calls the correct function to update the rotations.
  */
-ripe.OrbitalControls.prototype.updateRotation = function(frame, options) {
+ripe.CSRControls.prototype.updateRotation = function(frame, options) {
     const dragging = this.element.classList.contains("drag");
 
     const _frame = ripe.parseFrameKey(frame);
@@ -398,7 +400,7 @@ ripe.OrbitalControls.prototype.updateRotation = function(frame, options) {
  * Sets the rotation of the camera and meshes based on their current
  * continuous rotation.
  */
-ripe.OrbitalControls.prototype._updateDragRotations = function() {
+ripe.CSRControls.prototype._updateDragRotations = function() {
     let needsUpdate = false;
 
     // if there is no difference to the previous drag rotation in the X axis
@@ -407,35 +409,33 @@ ripe.OrbitalControls.prototype._updateDragRotations = function() {
         this.lockRotation !== "vertical"
     ) {
         this.currentHorizontalRot = this._baseHorizontalRot - this.mouseDeltaX;
-
         needsUpdate = true;
     }
-
-    let diff;
 
     // if there is no difference to the previous drag rotation in the Y axis
     if (
         this._baseVerticalRot - this.mouseDeltaY !== this.currentVerticalRot &&
         this.lockRotation !== "horizontal"
     ) {
-        // If reached bottom, deltaY is inverted
+        // in case the bottom is reached, deltaY is inverted
         if (this.mouseDeltaY * -1 + this._baseVerticalRot <= this.minimumVerticalRot) {
-            diff = this.minimumVerticalRot - (this.mouseDeltaY * -1 + this._baseVerticalRot);
+            const diff = this.minimumVerticalRot - (this.mouseDeltaY * -1 + this._baseVerticalRot);
             this.currentVerticalRot = this.minimumVerticalRot;
 
             this.referenceY -= diff;
             needsUpdate = true;
-        } // If reached top
+        }
+        // in case the top is reached
         else if (this.mouseDeltaY * -1 + this._baseVerticalRot >= this.maximumVerticalRot) {
-            diff = this.maximumVerticalRot - (this.mouseDeltaY * -1 + this._baseVerticalRot);
+            const diff = this.maximumVerticalRot - (this.mouseDeltaY * -1 + this._baseVerticalRot);
             this.currentVerticalRot = this.maximumVerticalRot;
 
             this.referenceY -= diff;
             needsUpdate = true;
-        } // Else is valid rotation
+        }
+        // else is valid rotation
         else {
             this.currentVerticalRot = this._baseVerticalRot - this.mouseDeltaY;
-
             needsUpdate = true;
         }
     }
@@ -459,7 +459,7 @@ ripe.OrbitalControls.prototype._updateDragRotations = function() {
  * @param {String} frame The new frame.
  * @param {Object} options Options to be used for the change.
  */
-ripe.OrbitalControls.prototype._updateRotations = async function(frame, options) {
+ripe.CSRControls.prototype._updateRotations = async function(frame, options) {
     const animating = this.element.classList.contains("animating");
 
     // parses the requested frame value according to the pre-defined
@@ -487,10 +487,8 @@ ripe.OrbitalControls.prototype._updateRotations = async function(frame, options)
         const next = this._validatedAngle(nextHorizontalRot);
         const diff = Math.abs(next - current);
 
-        // TODO Uncomment this
         duration = (diff * revolutionDuration) / 360;
         duration = 500;
-        // duration = diff * 60 / revolutionDuration;
     }
 
     // new rotation values
@@ -513,9 +511,9 @@ ripe.OrbitalControls.prototype._updateRotations = async function(frame, options)
  * Function to allow drifting if the mouse has acceleration to prevent
  * immediately stopping.
  *
- * @param {*} event The mouse event that is used for the drift.
+ * @param {Event} event The mouse event that is used for the drift.
  */
-ripe.OrbitalControls.prototype._drift = function(event) {
+ripe.CSRControls.prototype._drift = function(event) {
     // if specified that can't drift, return immediately
     if (!this.mouseDrift) return;
 
@@ -574,9 +572,9 @@ ripe.OrbitalControls.prototype._drift = function(event) {
 /**
  * The function to handle a rotation transition between views and/or positions.
  *
- * @param {*} options Options used for the transition.
+ * @param {Object} options Options used for the transition.
  */
-ripe.OrbitalControls.prototype.rotationTransition = async function(options) {
+ripe.CSRControls.prototype.rotationTransition = async function(options) {
     const position = parseInt(this.element.dataset.position);
     const view = this.element.dataset.view;
 
@@ -624,8 +622,9 @@ ripe.OrbitalControls.prototype.rotationTransition = async function(options) {
             false
         );
 
-        if (pos < 1) requestAnimationFrame(transition);
-        else {
+        if (pos < 1) {
+            requestAnimationFrame(transition);
+        } else {
             this.currentHorizontalRot = finalXRotation;
             this.currentVerticalRot = finalYRotation;
 
@@ -671,7 +670,7 @@ ripe.OrbitalControls.prototype.rotationTransition = async function(options) {
  *
  * @param {Number} angle The new angle.
  */
-ripe.OrbitalControls.prototype._validatedAngle = function(angle) {
+ripe.CSRControls.prototype._validatedAngle = function(angle) {
     if (angle > 360) return angle - 360;
     if (angle < 0) return angle + 360;
     return angle;

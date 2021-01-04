@@ -6,8 +6,9 @@ if (
         (typeof navigator !== "undefined" && navigator.product === "ReactNative"))
 ) {
     // eslint-disable-next-line no-redeclare
-    var base = require("../base");
+    const base = require("../../base");
     // eslint-disable-next-line no-redeclare
+    // eslint-disable-next-line no-var
     var ripe = base.ripe;
 }
 
@@ -54,8 +55,7 @@ ripe.CSR = function(owner, element, options) {
     this.shadowBias = 0;
     this.exposure = 1.5;
     this.radius = 1;
-    this.usesPostProcessing =
-        options.usesPostProcessing === undefined ? true : options.usesPostProcessing;
+    this.postProcessing = options.postProcessing === undefined ? true : options.postProcessing;
 
     this.postProcessLib = options.postProcessingLibrary;
     this._setPostProcessOptions(options);
@@ -72,10 +72,9 @@ ripe.CSR = function(owner, element, options) {
 
     this._wireframe = false;
 
-    this.gui = new ripe.GUI(this, options);
-
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
+    this.gui = new ripe.CSRGui(this, options);
 };
 
 ripe.CSR.prototype = ripe.build(ripe.Observable.prototype);
@@ -100,10 +99,8 @@ ripe.CSR.prototype.updateOptions = async function(options) {
         options.postProcessingLibrary === undefined
             ? this.postProcessLib
             : options.postProcessingLibrary;
-    this.usesPostProcessing =
-        options.usesPostProcessing === undefined
-            ? this.usesPostProcessing
-            : options.usesPostProcessing;
+    this.postProcessing =
+        options.postProcessing === undefined ? this.postProcessing : options.postProcessing;
 };
 
 /**
@@ -130,7 +127,10 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
 
     if (this.debug) this.gui.setup();
 
-    if (this.usesPostProcessing) this._setupPostProcessing();
+    // in case post processing is required runs the setup process
+    // for it, this may take several time to finish and may use
+    // web artifact like web workers for its execution
+    if (this.postProcessing) await this._setupPostProcessing();
 
     const hasAnimation = this._getAnimationByName(this.introAnimation) !== undefined;
 
@@ -451,7 +451,7 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
         this.rotate(options);
     }
 
-    // updates the wireframe to match between crossfades
+    // updates the wireframe to match between cross-fades
     this.updateWireframe(this._wireframe);
 
     // renders the scene after the change
@@ -809,16 +809,16 @@ ripe.CSR.prototype._initializeRenderer = function() {
 /**
  * Creates the render passes and adds them to the effect composer.
  */
-ripe.CSR.prototype._setupPostProcessing = function() {
-    this._setupBloomPass();
-    this._setupAAPass();
-    this._setupAOPass();
+ripe.CSR.prototype._setupPostProcessing = async function() {
+    await this._setupBloomPass();
+    await this._setupAAPass();
+    await this._setupAOPass();
 };
 
 /**
  * @ignore
  */
-ripe.CSR.prototype._setupBloomPass = function() {
+ripe.CSR.prototype._setupBloomPass = async function() {
     const blendFunction = this.postProcessLib.BlendFunction.SCREEN;
     const kernelSize = this.postProcessLib.KernelSize.MEDIUM;
     const luminanceSmoothing = 0.075;
@@ -863,7 +863,7 @@ ripe.CSR.prototype._setupAAPass = async function() {
         );
 
         // the following variables are used in
-        // the debug GUI
+        // the debug GUI (for the CSR)
         const edgesTextureEffect = new this.postProcessLib.TextureEffect({
             blendFunction: self.postProcessLib.BlendFunction.SKIP,
             texture: aaEffect.renderTargetEdges.texture
@@ -894,7 +894,7 @@ ripe.CSR.prototype._setupAAPass = async function() {
 /**
  * @ignore
  */
-ripe.CSR.prototype._setupAOPass = function() {};
+ripe.CSR.prototype._setupAOPass = async function() {};
 
 /**
  * Creates the default camera as well as the camera that will be responsible
