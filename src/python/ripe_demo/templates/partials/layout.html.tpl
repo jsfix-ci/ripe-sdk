@@ -14,7 +14,7 @@
 
             <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename = 'css/ripe.css') }}" />
             <script type="text/javascript" src="{{ url_for('static', filename = 'js/ripe.js', compress = 'js') }}"></script>
-            <script type="text/javascript" src="{{ url_for('static', filename = 'assets/swear/configs/vyner_hitop.js') }}"></script>
+            <script type="text/javascript" src="{{ url_for('static', filename = 'assets/cartier/configs/santos.js') }}"></script>
 
             <script type="text/javascript" src="{{ url_for('static', filename = 'js/main.js', compress = 'js') }}"></script>
             <title>{{ title }}{% block title %}RIPE SDK Demo{% endblock %}</title>

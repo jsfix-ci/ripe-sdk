@@ -10,9 +10,9 @@ window.onload = function() {
     var _body = document.querySelector("body");
     // var url = _body.dataset.url || "https://sandbox.platforme.com/api/";
     var url = _body.dataset.url || "http://localhost:8181/api/";
-    var brand = _body.dataset.brand || "swear";
+    var brand = _body.dataset.brand || "cartier";
     // var model = _body.dataset.model || "vyner";
-    var model = _body.dataset.model || "vyner_hitop";
+    var model = _body.dataset.model || "santos_watch";
     var variant = _body.dataset.variant || "";
     var version = _body.dataset.version || null;
     var format = _body.dataset.format || "lossless";
@@ -385,11 +385,11 @@ window.onload = function() {
 
                 camera: {
                     fov: 13,
-                    height: 18,
-                    target: { x: 0, y: 6.5, z: 0.0 },
-                    distance: 150,
-                    maxDistance: 180,
-                    minDistance: 100
+                    height: 4,
+                    target: { x: 0, y: 4, z: 0.0 },
+                    distance: 55,
+                    maxDistance: 90,
+                    minDistance: 0
                 },
 
                 controls: {
@@ -402,7 +402,10 @@ window.onload = function() {
 
                     // 'lockRotation' can be 'horizontal', 'vertical', or be left
                     // empty for no axis lock on rotations
-                    rotationEasing: "easeInOutQuad"
+                    rotationEasing: "easeInOutQuad",
+
+                    minimumVerticalRot: -89,
+                    maximumVerticalRot: 89
                 },
 
                 renderer: {
@@ -410,13 +413,13 @@ window.onload = function() {
                     materialEasing: "easeInOutQuad",
                     crossfadeEasing: "easeInOutQuad",
                     initialsPlacement: "center",
-                    introAnimation: "mesh_slide_in_1.glb",
-                    environment: "exterior_building",
+                    // introAnimation: "santos_explode.glb",
+                    environment: "chinese_garden",
                     maskOpacity: 0.7
                 },
 
                 postProcess: {
-                    exposure: 1.6,
+                    exposure: 1,
                     shadowBias: -0.0005,
                     bloom: {
                         threshold: 0.9,

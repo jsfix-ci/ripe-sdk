@@ -123,7 +123,7 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAn
     let path = this.assetsPath + this.owner.brand.toLowerCase();
 
     if (isAnimation) {
-        path += "/animations/" + this.owner.model.toLowerCase() + "/" + filename;
+        path += "/animations/" + filename;
     } else {
         path = this.owner.getMeshUrl({
             variant: "$base"
@@ -155,13 +155,6 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAn
         // "gathers" the first animation of the asset as the main,
         // the one that is going to be store in memory
         this.animations[filename] = asset.animations[0];
-
-        // if it is a mesh operation it must be added to the set
-        // of animations associated with the currently loaded scene
-        const isMeshOperation = filename.includes("mesh_");
-        if (isMeshOperation) {
-            this.loadedScene.animations.push(asset.animations[0]);
-        }
     } else {
         // adds embedded animations in the file to animations
         // array
@@ -356,7 +349,7 @@ ripe.CSRAssetManager.prototype.getPart = function(part) {
     // iterate through the children of the scene, and check if the
     // part is present in the scene structure
     for (const mesh of scene) {
-        if (mesh.name === part) return mesh;
+        if (mesh.name === part || mesh.name === part + "_part") return mesh;
     }
 
     // returns an invalid value as the default return value,
@@ -410,8 +403,12 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
             continue;
         }
 
-        // if it's a mesh, apply material
-        if (scenePart.type === "Mesh") {
+        // if it is an empty node, cascade the material to the children
+        if (scenePart.type === "Object3D") {
+            this.cascadeMaterial(scenePart, newMaterial);
+        }
+        // if it's a mesh or skinned mesh, apply material
+        else {
             if (scenePart.material) {
                 scenePart.material.dispose();
                 scenePart.material = null;
@@ -420,9 +417,28 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
             scenePart.material = newMaterial.clone();
             this.disposeMaterial(newMaterial);
         }
+    }
+
+    // apply default materials
+    for (const part in this.modelConfig.default) {
+        const scenePart = this.getPart(part);
+        if (!scenePart) continue;
+
+        const newMaterial = await this._loadMaterial(part, "default");
+
         // if it is an empty node, cascade the material to the children
-        else if (scenePart.type === "Object3D") {
+        if (scenePart.type === "Object3D") {
             this.cascadeMaterial(scenePart, newMaterial);
+        }
+        // if it's a mesh or skinned mesh, apply material
+        else {
+            if (scenePart.material) {
+                scenePart.material.dispose();
+                scenePart.material = null;
+            }
+
+            scenePart.material = newMaterial.clone();
+            this.disposeMaterial(newMaterial);
         }
     }
 
@@ -457,9 +473,14 @@ ripe.CSRAssetManager.prototype._storePartsColors = function() {
 ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color) {
     let materialConfig;
 
+    // if the default mode is requested, the model config only
+    // requires the part
+    if (type === "default") {
+        materialConfig = this.modelConfig.default[part];
+    }
     // if the specific texture doesn't exist, fallbacks to
     // general textures
-    if (!this.modelConfig[part] || !this.modelConfig[part][type]) {
+    else if (!this.modelConfig[part] || !this.modelConfig[part][type]) {
         materialConfig = this.modelConfig.general[type][color];
     } else {
         materialConfig = this.modelConfig[part][type][color];
@@ -473,7 +494,7 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
     }
     // otherwise follows PBR workflow
     else {
-        newMaterial = new this.library.MeshStandardMaterial();
+        newMaterial = new this.library.MeshPhysicalMaterial();
     }
 
     const basePath =
@@ -495,6 +516,14 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
                     });
                 });
 
+                if (prop === "metalnessMap") {
+                    newMaterial.metalness = 1;
+                }
+
+                if (prop === "aoMap") {
+                    newMaterial.aoMapIntensity = 0.33;
+                }
+
                 // if the texture is used for color information, set colorspace to sRGB
                 if (prop === "map" || prop.includes("emissive")) {
                     texture.encoding = this.library.sRGBEncoding;
@@ -509,7 +538,20 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
                 this.loadedTextures[mapPath] = texture;
             }
 
+            // is transparent material
+            if (prop.includes("alpha") || prop.includes("transmission")) {
+                newMaterial.depthWrite = false;
+                newMaterial.transparent = true;
+                
+                // newMaterial.trans = this.loadedTextures[mapPath];
+                // if it is transparent, make it not cast shadows
+                const scenePart = this.getPart(part);
+                scenePart.castShadow = false;
+            }
+
             newMaterial[prop] = this.loadedTextures[mapPath];
+
+            console.log(newMaterial);
         }
         // if it's not a map, it's a property, apply it
         else {
@@ -523,6 +565,7 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
     }
 
     newMaterial.perPixel = true;
+    newMaterial.skinning = true;
     return newMaterial;
 };
 
@@ -563,6 +606,7 @@ ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer
     this.environmentTexture = this.pmremGenerator.fromEquirectangular(texture).texture;
 
     scene.environment = this.environmentTexture;
+    
 };
 
 /**
