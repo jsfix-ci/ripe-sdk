@@ -247,7 +247,7 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
         this.renderer.updateInitials("remove", this.initials.textMeshes);
         await this.initials.update();
         this.renderer.updateInitials("add", this.initials.textMeshes);
-        this.renderer.render();
+        this.renderer.needsRenderUpdate = true;
     }
 
     // removes the highlight support from the matched object as a new

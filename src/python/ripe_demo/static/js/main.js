@@ -395,11 +395,11 @@ window.onload = function() {
 
                 camera: {
                     fov: 13,
-                    height: 18,
-                    target: { x: 0, y: 6.5, z: 0.0 },
-                    distance: 150,
-                    maxDistance: 180,
-                    minDistance: 100
+                    height: 4,
+                    target: { x: 0, y: 4, z: 0.0 },
+                    distance: 55,
+                    maxDistance: 90,
+                    minDistance: 0
                 },
 
                 controls: {
@@ -412,7 +412,10 @@ window.onload = function() {
 
                     // 'lockRotation' can be 'horizontal', 'vertical', or be left
                     // empty for no axis lock on rotations
-                    rotationEasing: "easeInOutQuad"
+                    rotationEasing: "easeInOutQuad",
+
+                    minimumVerticalRot: -89,
+                    maximumVerticalRot: 89
                 },
 
                 renderer: {
@@ -421,12 +424,12 @@ window.onload = function() {
                     crossfadeEasing: "easeInOutQuad",
                     initialsPlacement: "center",
                     introAnimation: "santos_explode.glb",
-                    environment: "exterior_building",
+                    environment: "chinese_garden",
                     maskOpacity: 0.7
                 },
 
                 postProcess: {
-                    exposure: 1.6,
+                    exposure: 1,
                     shadowBias: -0.0005,
                     bloom: {
                         threshold: 0.9,

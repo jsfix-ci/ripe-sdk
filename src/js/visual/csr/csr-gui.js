@@ -45,15 +45,15 @@ ripe.CSRGui.prototype.setup = function() {
     this.gui.domElement.id = "gui";
 
     const updateShadows = (param, value) => {
-        this.csr.keyLight.shadow[param] = value;
-        this.csr.rimLight.shadow[param] = value;
-        this.csr.fillLight.shadow[param] = value;
-        this.csr.render();
+        if (this.csr.keyLight) this.csr.keyLight.shadow[param] = value;
+        if (this.csr.rimLight) this.csr.rimLight.shadow[param] = value;
+        if (this.csr.fillLight) this.csr.fillLight.shadow[param] = value;
+        this.csr.needsRenderUpdate = true;
     };
 
     const updateRenderer = (param, value) => {
         this.csr.renderer[param] = value;
-        this.csr.render();
+        this.csr.needsRenderUpdate = true;
     };
 
     const folder = this.gui.addFolder("Render Settings");
@@ -63,6 +63,13 @@ ripe.CSRGui.prototype.setup = function() {
         .onChange(function(value) {
             updateRenderer("toneMappingExposure", value);
         });
+
+    // if there are no lights, exit
+    if (!this.csr.keyLight) {
+        folder.open();
+        return;
+    }
+
     folder
         .add(this.csr.keyLight.shadow, "bias", -0.005, 0.005)
         .step(0.0001)
@@ -82,7 +89,7 @@ ripe.CSRGui.prototype.setup = function() {
         .name("Enable Wireframe Mode")
         .onChange(function(value) {
             self.csr.updateWireframe(value);
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
     folder.open();
 };
@@ -98,7 +105,7 @@ ripe.CSRGui.prototype.setupBloom = function(bloomEffect) {
         .name("Threshold")
         .onChange(function(value) {
             bloomEffect.luminanceMaterial.threshold = value;
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
     folderBloom
         .add(bloomEffect, "intensity", 0.0, 3.0)
@@ -106,7 +113,7 @@ ripe.CSRGui.prototype.setupBloom = function(bloomEffect) {
         .name("Intensity")
         .onChange(function(value) {
             bloomEffect.intensity = value;
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
     folderBloom
         .add(bloomEffect.blendMode.opacity, "value", 0.0, 1.0)
@@ -115,7 +122,7 @@ ripe.CSRGui.prototype.setupBloom = function(bloomEffect) {
         .name("Opacity")
         .onChange(function(value) {
             bloomEffect.blendMode.opacity.value = value;
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
 
     folderBloom.open();
@@ -158,14 +165,14 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
     folderAA.add(params.smaa, "preset", lib.SMAAPreset).onChange(() => {
         aaEffect.applyPreset(Number(params.smaa.preset));
         params.edgeDetection.threshold = Number(edgeDetectionMaterial.defines.EDGE_THRESHOLD);
-        self.csr.render();
+        self.csr.needsRenderUpdate = true;
     });
 
     let subfolder = folderAA.addFolder("Edge Detection");
 
     subfolder.add(params.edgeDetection, "mode", lib.EdgeDetectionMode).onChange(() => {
         edgeDetectionMaterial.setEdgeDetectionMode(Number(params.edgeDetection.mode));
-        self.csr.render();
+        self.csr.needsRenderUpdate = true;
     });
 
     subfolder
@@ -177,7 +184,7 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
             edgeDetectionMaterial.setLocalContrastAdaptationFactor(
                 Number(params.edgeDetection["contrast factor"])
             );
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
 
     subfolder
@@ -187,7 +194,7 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
         .step(0.0001)
         .onChange(() => {
             edgeDetectionMaterial.setEdgeDetectionThreshold(Number(params.edgeDetection.threshold));
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         })
         .listen();
 
@@ -195,7 +202,7 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
 
     subfolder.add(params.predication, "mode", lib.PredicationMode).onChange(() => {
         edgeDetectionMaterial.setPredicationMode(Number(params.predication.mode));
-        self.csr.render();
+        self.csr.needsRenderUpdate = true;
     });
 
     subfolder
@@ -205,7 +212,7 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
         .step(0.0001)
         .onChange(() => {
             edgeDetectionMaterial.setPredicationThreshold(Number(params.predication.threshold));
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
 
     subfolder
@@ -215,7 +222,7 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
         .step(0.0001)
         .onChange(() => {
             edgeDetectionMaterial.setPredicationStrength(Number(params.predication.strength));
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
 
     subfolder
@@ -225,7 +232,7 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
         .step(0.01)
         .onChange(() => {
             edgeDetectionMaterial.setPredicationScale(Number(params.predication.scale));
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
 
     folderAA
@@ -235,12 +242,12 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
         .step(0.01)
         .onChange(() => {
             aaEffect.blendMode.opacity.value = params.smaa.opacity;
-            self.csr.render();
+            self.csr.needsRenderUpdate = true;
         });
 
     folderAA.add(params.smaa, "blend mode", lib.BlendFunction).onChange(() => {
         aaEffect.blendMode.setBlendFunction(Number(params.smaa["blend mode"]));
-        self.csr.render();
+        self.csr.needsRenderUpdate = true;
     });
 
     folderAA.open();

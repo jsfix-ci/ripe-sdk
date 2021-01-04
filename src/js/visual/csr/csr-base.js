@@ -146,25 +146,26 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
     // otherwise runs the "typical" render operation
     const executeAnimation = hasAnimation && this.introAnimation;
     if (executeAnimation) this._performAnimation(this.introAnimation);
+    else this.needsRenderUpdate = true;
 };
 
 /**
- * Creates custom render and raycasting loops for increased performance. 
- * For the render loop, only render when specifically told to update, 
+ * Creates custom render and raycasting loops for increased performance.
+ * For the render loop, only render when specifically told to update,
  * for the raycasting loop, only raycast when mouse event was registered,
- * and after a certain threshold of time has passed since the previous 
+ * and after a certain threshold of time has passed since the previous
  * raycast operation.
  */
-ripe.CSR.prototype._createLoops = function () {
-    this.renderUpdate = false;
+ripe.CSR.prototype._createLoops = function() {
+    this.needsRenderUpdate = false;
     this.forceStopRender = false;
-    
+
     this.renderLoop = () => {
-        if (this.renderUpdate && !this.forceStopRender) {
+        if (this.needsRenderUpdate && !this.forceStopRender) {
             this.composer.render();
         }
 
-        this.renderUpdate = false;
+        this.needsRenderUpdate = false;
 
         requestAnimationFrame(this.renderLoop);
     };
@@ -175,14 +176,17 @@ ripe.CSR.prototype._createLoops = function () {
     this.raycastEvent = null;
     // number of seconds separating each call to trigger a raycast
     this.raycastThreshold = 0.2;
-    
+
     this.raycastLoop = () => {
         // time the last "getDelta" was called
         const previousTime = this.raycastClock.oldTime;
         const delta = this.raycastClock.getDelta();
 
-        let canRaycast = this.raycastEvent && delta > this.raycastThreshold && !this.element.classList.contains("no-raycast");
-        
+        const canRaycast =
+            this.raycastEvent &&
+            delta > this.raycastThreshold &&
+            !this.element.classList.contains("no-raycast");
+
         if (canRaycast) {
             this._attemptRaycast(this.raycastEvent);
             this.raycastEvent = null;
@@ -199,7 +203,7 @@ ripe.CSR.prototype._createLoops = function () {
     requestAnimationFrame(this.renderLoop);
     // begin raycast loop for increased performance
     requestAnimationFrame(this.raycastLoop);
-}
+};
 
 /**
  * Function to dispose all resources created by the renderer,
@@ -379,11 +383,11 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
         currentG = ripe.easing[this.highlightEasing](pos, startG, endColor.g);
         currentB = ripe.easing[this.highlightEasing](pos, startB, endColor.b);
 
-        if (pos < 1) {
-            this.renderUpdate = true;
+        if (pos <= 1) {
+            this.needsRenderUpdate = true;
             requestAnimationFrame(changeHighlightTransition);
         } else {
-            this.renderUpdate = false;
+            this.needsRenderUpdate = false;
             if (this.element.classList.contains("no-raycast")) {
                 this.element.classList.remove("no-raycast");
             }
@@ -536,7 +540,7 @@ ripe.CSR.prototype.rotate = function(options) {
     this.camera.position.z = distance * Math.cos((Math.PI / 180) * options.rotationX);
 
     this.camera.lookAt(this.cameraTarget);
-    this.renderUpdate = true;
+    this.needsRenderUpdate = true;
 };
 
 ripe.CSR.prototype._setCameraOptions = function(options = {}) {
@@ -615,10 +619,20 @@ ripe.CSR.prototype._registerHandlers = function() {
     const self = this;
     const area = this.element.querySelector(".area");
 
-    // listens for mouse leave events and if it occurs then
-    // stops reacting to mousemove events has drag movements
+    area.addEventListener("mousedown", function(event) {
+        const animating = self.element.classList.contains("animating");
+        if (animating) return;
+
+        self.down = true;
+    });
+
     area.addEventListener("mouseout", function(event) {
         self.lowlight();
+        self.down = false;
+    });
+
+    area.addEventListener("mouseup", function(event) {
+        self.down = false;
     });
 
     area.addEventListener("mousemove", function(event) {
@@ -731,7 +745,7 @@ ripe.CSR.prototype._initializeLights = function() {
     // with scenes of varying sizes.
     const mult = this.initialDistance;
 
-    this.keyLight = new this.library.PointLight(0xffffff, 2.2, 9 * mult);
+    this.keyLight = new this.library.PointLight(0xffffff, 0.5, 9 * mult);
     this.keyLight.position.set(1 * mult, 1 * mult, 1 * mult);
     this.keyLight.castShadow = true;
     this.keyLight.shadow.mapSize.width = 1024;
@@ -739,7 +753,7 @@ ripe.CSR.prototype._initializeLights = function() {
     this.keyLight.shadow.radius = this.radius;
     this.keyLight.shadow.bias = this.shadowBias;
 
-    this.fillLight = new this.library.PointLight(0xffffff, 1.1, 9 * mult);
+    this.fillLight = new this.library.PointLight(0xffffff, 0.2, 9 * mult);
     this.fillLight.position.set(-1 * mult, 0.5 * mult, 1 * mult);
     this.fillLight.castShadow = true;
     this.fillLight.shadow.mapSize.width = 1024;
@@ -747,7 +761,7 @@ ripe.CSR.prototype._initializeLights = function() {
     this.fillLight.shadow.radius = this.radius;
     this.fillLight.shadow.bias = this.shadowBias;
 
-    this.rimLight = new this.library.PointLight(0xffffff, 3.1, 9 * mult);
+    this.rimLight = new this.library.PointLight(0xffffff, 0.7, 9 * mult);
     this.rimLight.position.set(-0.5 * mult, 0.75 * mult, -1.5 * mult);
     this.rimLight.castShadow = true;
     this.rimLight.shadow.mapSize.width = 1024;
@@ -782,9 +796,10 @@ ripe.CSR.prototype._initializeRenderer = function() {
 
     // sets renderer params
     this.renderer.toneMappingExposure = this.exposure;
-    this.renderer.toneMapping = this.library.CineonToneMapping;
+    this.renderer.toneMapping = this.library.ACESFilmicToneMapping;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = this.library.PCFSoftShadowMap;
+    this.renderer.outputEncoding = this.library.sRGBEncoding;
 
     const area = this.element.querySelector(".area");
     const devicePixelRatio = window.devicePixelRatio || 1;
@@ -972,6 +987,9 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
     clock.stop();
     action.play().stop();
 
+    action.clampWhenFinished = true;
+    action.loop = this.library.LoopOnce;
+
     let delta = -1;
 
     const doAnimation = () => {
@@ -989,22 +1007,21 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
 
             clock.start();
             action.play();
-            
+
             if (!this.enableRaycastAnimation) {
                 // adds the no-raycast flag to improve performance
                 this.element.classList.add("no-raycast");
             }
-    
         }
 
         delta = clock.getDelta();
         mixer.update(delta);
 
         if (!action.paused) {
-            this.renderUpdate = true;
+            this.needsRenderUpdate = true;
             requestAnimationFrame(doAnimation);
         } else {
-            this.renderUpdate = false;
+            this.needsRenderUpdate = false;
             clock.stop();
             if (!this.enableRaycastAnimation) {
                 // adds the no-raycast flag to improve performance
@@ -1063,7 +1080,7 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // in case the cast unique identifier is no longer the same it means
     // that we should ignore it's result (as this is casting is outdated)
     if (castId !== this._castId) return;
-    
+
     // in case no intersection occurs then a lowlight is performed (click outside scope)
     // and the control flow is immediately returned to caller method
     if (intersects.length === 0) {
