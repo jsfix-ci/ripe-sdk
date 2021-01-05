@@ -6,8 +6,9 @@ if (
         (typeof navigator !== "undefined" && navigator.product === "ReactNative"))
 ) {
     // eslint-disable-next-line no-redeclare
-    var base = require("../base");
+    const base = require("../../base");
     // eslint-disable-next-line no-redeclare
+    // eslint-disable-next-line no-var
     var ripe = base.ripe;
 }
 
@@ -22,24 +23,24 @@ if (
  * @param {Object} options The options to be used to configure the
  * renderer instance to be created.
  */
-ripe.GUI = function(csr, options) {
+ripe.CSRGui = function(csr, options) {
     this.guiLib = options.dat === undefined ? null : options.dat;
     this.csr = csr;
 };
 
-ripe.GUI.prototype = ripe.build(ripe.Observable.prototype);
-ripe.GUI.prototype.constructor = ripe.GUI;
+ripe.CSRGui.prototype = ripe.build(ripe.Observable.prototype);
+ripe.CSRGui.prototype.constructor = ripe.CSRGui;
 
 /**
  * Creates the debug GUI for the post processing pipeline, with support
  * for dynamic change of the render pass parameters.
  */
-ripe.GUI.prototype.setup = function() {
+ripe.CSRGui.prototype.setup = function() {
     if (this.guiLib === null) return;
 
     const self = this;
 
-    this.gui = new this.guiLib.GUI({ width: 300 });
+    this.gui = new this.guiLib.CSRGui({ width: 300 });
 
     this.gui.domElement.id = "gui";
 
@@ -93,7 +94,7 @@ ripe.GUI.prototype.setup = function() {
     folder.open();
 };
 
-ripe.GUI.prototype.setupBloom = function(bloomEffect) {
+ripe.CSRGui.prototype.setupBloom = function(bloomEffect) {
     const self = this;
 
     const folderBloom = this.gui.addFolder("Bloom Pass");
@@ -127,7 +128,7 @@ ripe.GUI.prototype.setupBloom = function(bloomEffect) {
     folderBloom.open();
 };
 
-ripe.GUI.prototype.setupAA = function(lib, aaEffect) {
+ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
     const folderAA = this.gui.addFolder("SMAA Pass");
     const edgeDetectionMaterial = aaEffect.edgeDetectionMaterial;
 

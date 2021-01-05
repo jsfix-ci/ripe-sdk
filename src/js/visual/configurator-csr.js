@@ -6,9 +6,10 @@ if (
         (typeof navigator !== "undefined" && navigator.product === "ReactNative"))
 ) {
     // eslint-disable-next-line no-redeclare
-    var base = require("../base");
+    const base = require("../base");
     require("./visual");
     // eslint-disable-next-line no-redeclare
+    // eslint-disable-next-line no-var
     var ripe = base.ripe;
 }
 
@@ -112,7 +113,7 @@ ripe.ConfiguratorCSR.prototype.init = function() {
     this.renderer = new ripe.CSR(this.owner, this.element, this.options);
     this.initials = new ripe.CSRInitials(this.owner, this.options);
     this.assetManager = new ripe.CSRAssetManager(this, this.owner, this.options);
-    this.controls = new ripe.OrbitalControls(this, this.element, this.options);
+    this.controls = new ripe.CSRControls(this, this.element, this.options);
 };
 
 /**

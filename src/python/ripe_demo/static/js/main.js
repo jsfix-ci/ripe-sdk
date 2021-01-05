@@ -2,36 +2,37 @@
  * The complete set of faces that may be used in the configurator
  * as the starting view.
  */
-var FACES = ["side", "top", "front"];
+const FACES = ["side", "top", "front"];
 
 window.onload = function() {
-    var elementCSR = document.getElementById("configurator-csr");
-    var elementPRC = document.getElementById("configurator-prc");
-    var _body = document.querySelector("body");
-    // var url = _body.dataset.url || "https://sandbox.platforme.com/api/";
-    var url = _body.dataset.url || "http://localhost:8181/api/";
-    var brand = _body.dataset.brand || "cartier";
-    // var model = _body.dataset.model || "vyner";
-    var model = _body.dataset.model || "santos_watch";
-    var variant = _body.dataset.variant || "";
-    var version = _body.dataset.version || null;
-    var format = _body.dataset.format || "lossless";
-    var currency = _body.dataset.currency || "USD";
-    var country = _body.dataset.country || "US";
-    var clientId = _body.dataset.client_id || null;
-    var clientSecret = _body.dataset.client_secret || null;
-    var guess = ["1", "true", "True"].indexOf(_body.dataset.guess) !== -1;
-    var guessUrl = ["1", "true", "True"].indexOf(_body.dataset.guess_url) !== -1;
+    const elementCSR = document.getElementById("configurator-csr");
+    const elementPRC = document.getElementById("configurator-prc");
+    const _body = document.querySelector("body");
+    // const url = _body.dataset.url || "https://sandbox.platforme.com/api/";
+    const url = _body.dataset.url || "http://localhost:8181/api/";
+    const brand = _body.dataset.brand || "cartier";
+    // const model = _body.dataset.model || "vyner";
+    const model = _body.dataset.model || "santos_watch";
+    const variant = _body.dataset.variant || "";
+    const version = _body.dataset.version || null;
+    const format = _body.dataset.format || "lossless";
+    const currency = _body.dataset.currency || "USD";
+    const country = _body.dataset.country || "US";
+    const clientId = _body.dataset.client_id || null;
+    const clientSecret = _body.dataset.client_secret || null;
+    const guess = ["1", "true", "True"].indexOf(_body.dataset.guess) !== -1;
+    const guessUrl = ["1", "true", "True"].indexOf(_body.dataset.guess_url) !== -1;
 
-    var currentRenderMode = "csr";
-    var configuratorCSR = null;
-    var configuratorPRC = null;
+    let image = null;
+    let renderMode = "csr";
+    let configuratorCSR = null;
+    let configuratorPRC = null;
 
-    var parts = [];
-    var partsMap = {};
+    const parts = [];
+    const partsMap = {};
 
     // eslint-disable-next-line no-undef
-    var ripe = new Ripe({
+    const ripe = new Ripe({
         brand: brand,
         model: model,
         variant: variant,
@@ -41,44 +42,45 @@ window.onload = function() {
         currency: currency,
         country: country,
         guess: guess,
-        guessUrl: guessUrl
+        guessUrl: guessUrl,
+        errorPopup: true
     });
 
-    var randomize = async function() {
-        var parts = [];
-        for (var key in partsMap) {
-            var triplets = partsMap[key];
-            var index = Math.floor(Math.random() * triplets.length);
-            var triplet = triplets[index];
+    const randomize = async function() {
+        const parts = [];
+        for (const key in partsMap) {
+            const triplets = partsMap[key];
+            const index = Math.floor(Math.random() * triplets.length);
+            const triplet = triplets[index];
             parts.push(triplet);
         }
         await ripe.setParts(parts, true, { partEvents: false });
     };
 
-    var unique = function() {
-        var count = 1;
-        for (var key in partsMap) {
-            var triplets = partsMap[key];
+    const unique = function() {
+        let count = 1;
+        for (const key in partsMap) {
+            const triplets = partsMap[key];
             count *= triplets.length;
         }
         return count;
     };
 
-    var beautify = function(value) {
-        var buffer = [];
-        var parts = value.split("_");
-        for (var index = 0; index < parts.length; index++) {
-            var part = parts[index];
+    const beautify = function(value) {
+        const buffer = [];
+        const parts = value.split("_");
+        for (let index = 0; index < parts.length; index++) {
+            const part = parts[index];
             buffer.push(part[0].toUpperCase() + part.substring(1));
         }
         return buffer.join(" ");
     };
 
-    var bestFace = function(config) {
-        var faces = config.faces || [];
-        var bestFace = null;
-        for (var index = 0; index < FACES.length; index++) {
-            var face = FACES[index];
+    const bestFace = function(config) {
+        const faces = config.faces || [];
+        let bestFace = null;
+        for (let index = 0; index < FACES.length; index++) {
+            const face = FACES[index];
             if (faces.indexOf(face) === -1) {
                 continue;
             }
@@ -91,7 +93,7 @@ window.onload = function() {
         return faces.length > 0 ? faces[0] : null;
     };
 
-    var init = function(instance) {
+    const init = function(instance) {
         initBase(instance);
         initHeader(instance);
         initOAuth(instance);
@@ -99,7 +101,7 @@ window.onload = function() {
         initInitials(instance);
     };
 
-    var initBase = function() {
+    const initBase = function() {
         // registers for the key down event on the global document element
         // to listen to some of the key strokes (global operations)
         document.addEventListener("keydown", async function(event) {
@@ -113,10 +115,16 @@ window.onload = function() {
         });
     };
 
-    var initHeader = function() {
-        var setMessage = document.getElementById("set-message");
-        var getPrice = document.getElementById("get-price");
-        var getCombinations = document.getElementById("get-combinations");
+    const initHeader = function() {
+        const setPart = document.getElementById("set-part");
+        const setMessage = document.getElementById("set-message");
+        const getPrice = document.getElementById("get-price");
+        const getCombinations = document.getElementById("get-combinations");
+
+        setPart &&
+            setPart.addEventListener("click", function() {
+                randomize();
+            });
 
         setMessage &&
             setMessage.addEventListener("click", function() {
@@ -156,7 +164,7 @@ window.onload = function() {
         });
 
         ripe.bind("price", function(value) {
-            var price = document.getElementById("price");
+            const price = document.getElementById("price");
             if (!value || !value.total) {
                 price.innerHTML = "N/A";
                 return;
@@ -165,10 +173,10 @@ window.onload = function() {
         });
 
         ripe.bind("combinations", function(value) {
-            for (var index = 0; index < value.length; index++) {
-                var triplet = value[index];
-                var part = triplet[0];
-                var triplets = partsMap[part] || [];
+            for (let index = 0; index < value.length; index++) {
+                const triplet = value[index];
+                const part = triplet[0];
+                const triplets = partsMap[part] || [];
                 triplets.push(triplet);
                 partsMap[part] = triplets;
                 parts.push(triplet);
@@ -176,7 +184,7 @@ window.onload = function() {
         });
     };
 
-    var initOAuth = function() {
+    const initOAuth = function() {
         let oauthLogin = document.getElementById("oauth-login");
         let oauthLogout = document.getElementById("oauth-logout");
         let oauthOperation = document.getElementById("oauth-operation");
@@ -228,20 +236,24 @@ window.onload = function() {
         });
     };
 
-    var initConfigurator = function() {
+    const initConfigurator = function() {
+        // gathers the reference to the top level elements that are
+        // going to be used for proper event handling registration
+        const toggleRenderMode = document.getElementById("toggle-render");
+
         // loads the config of the product to retrieve the
         // complete configuration of the product and be able
         // to define the visible frames and apply restrictions
-        var caller = ripe.loadedConfig
+        const caller = ripe.loadedConfig
             ? function(callback) {
                   callback(ripe.loadedConfig);
               }
             : ripe.getConfig;
         caller(function(result) {
-            var frame0 = document.getElementById("frame-0");
-            var frame6 = document.getElementById("frame-6");
-            var frameTop = document.getElementById("frame-top");
-            var frameFront = document.getElementById("frame-front");
+            const frame0 = document.getElementById("frame-0");
+            const frame6 = document.getElementById("frame-6");
+            const frameTop = document.getElementById("frame-top");
+            const frameFront = document.getElementById("frame-front");
 
             frame0.style.display = "none";
             frame6.style.display = "none";
@@ -251,7 +263,7 @@ window.onload = function() {
             if (result.faces.indexOf("side") !== -1) {
                 if (result.frames > 0) {
                     frame0.style.display = "inline";
-                    var image = ripe.bindImage(frame0, {
+                    image = ripe.bindImage(frame0, {
                         frame: "side-0"
                     });
                 }
@@ -344,14 +356,14 @@ window.onload = function() {
                 noMasks: false,
                 view: bestFace(result),
 
-                // can be "crossfade", "rotate" or "none"
+                // can be `crossfade`, `rotate` or `none`
                 viewAnimate: "crossfade",
                 positionAnimate: "rotate",
 
                 // debug is used to change post processing settings
                 debug: false,
 
-                usesPostProcessing: true,
+                postProcessing: true,
 
                 library: window.THREE,
                 dat: window.dat,
@@ -374,8 +386,6 @@ window.onload = function() {
                 },
 
                 initials: {
-                    // TODO extract alignment from build
-                    // can be "left", "right", "center"
                     align: "center",
                     size: 0.5,
                     height: 0.1,
@@ -457,57 +467,41 @@ window.onload = function() {
                 }
             });
 
-            var toggleRenderMode = document.getElementById("toggle-render");
+            // registers for the unloading function to avoid memory
+            // leaks both in the CSR and PRC configurators
+            window.addEventListener("unload", function() {
+                ripe.unbindConfigurator(configuratorCSR);
+                ripe.unbindConfigurator(configuratorPRC);
+            });
 
+            // in case the toggle render mode button is found then register
+            // the on click even that is going to be toggling between the
+            // multiple render modes available
             toggleRenderMode &&
                 toggleRenderMode.addEventListener("click", function() {
-                    if (currentRenderMode === "prc") currentRenderMode = "csr";
-                    else if (currentRenderMode === "csr") currentRenderMode = "prc";
-
-                    displayRenderMode();
+                    if (renderMode === "prc") renderMode = "csr";
+                    else if (renderMode === "csr") renderMode = "prc";
+                    updateRenderMode();
                 });
 
-            displayRenderMode();
-
-            var setPart = document.getElementById("set-part");
-
-            setPart &&
-                setPart.addEventListener("click", function() {
-                    randomize();
-                });
+            // updates the render mode visibility according to the currently
+            // set render mode in the global variable
+            updateRenderMode();
 
             // eslint-disable-next-line no-undef
-            var syncPlugin = new Ripe.plugins.SyncPlugin(result.sync);
+            const syncPlugin = new Ripe.plugins.SyncPlugin(result.sync);
 
             // eslint-disable-next-line no-undef
-            var restrictionsPlugin = new Ripe.plugins.RestrictionsPlugin(result.restrictions);
+            const restrictionsPlugin = new Ripe.plugins.RestrictionsPlugin(result.restrictions);
 
             // adds both plugins to the ripe instance so that can
             // be properly used under this runtime
             ripe.addPlugin(syncPlugin);
             ripe.addPlugin(restrictionsPlugin);
-
-            // Added unloading function to avoid memory leaks in ThreeJS
-            window.onunload = function() {
-                ripe.unbindConfigurator(configuratorCSR);
-                ripe.unbindConfigurator(configuratorPRC);
-            };
         });
     };
 
-    var displayRenderMode = function() {
-        if (currentRenderMode === "prc") {
-            elementCSR.style.display = "none";
-            elementPRC.style.display = "inline-block";
-            configuratorPRC.resize();
-        } else if (currentRenderMode === "csr") {
-            elementPRC.style.display = "none";
-            elementCSR.style.display = "inline-block";
-            configuratorCSR.resize();
-        }
-    };
-
-    var initInitials = function() {
+    const initInitials = function() {
         ripe.bindImage(document.getElementById("initials"), {
             showInitials: true
         });
@@ -520,39 +514,39 @@ window.onload = function() {
         });
 
         document.getElementById("initials-text").addEventListener("keyup", function() {
-            var initialsDrop = document.getElementById("initials-drop");
-            var initialsDropContainer = initialsDrop.parentElement;
-            var initialsInput = initialsDropContainer.getElementsByTagName("input")[0];
+            const initialsDrop = document.getElementById("initials-drop");
+            const initialsDropContainer = initialsDrop.parentElement;
+            const initialsInput = initialsDropContainer.getElementsByTagName("input")[0];
             ripe.setInitials(this.value, initialsInput.value);
         });
 
         document.getElementById("initials-drop").onvalue_change = function() {
-            var initialsText = document.getElementById("initials-text");
-            var initialsDropContainer = this.parentElement;
-            var initialsInput = initialsDropContainer.getElementsByTagName("input")[0];
+            const initialsText = document.getElementById("initials-text");
+            const initialsDropContainer = this.parentElement;
+            const initialsInput = initialsDropContainer.getElementsByTagName("input")[0];
             ripe.setInitials(initialsText.value, initialsInput.value);
         };
 
         // loads the configuration to try to discover the profiles
         // that are available for the current model and build the
         // associated drop down with these values
-        var caller = ripe.loadedConfig
+        const caller = ripe.loadedConfig
             ? function(callback) {
                   callback(ripe.loadedConfig);
               }
             : ripe.getConfig;
         caller(function(result) {
-            var initials = result.initials || {};
-            var profiles = initials.$profiles || {};
-            var profilesKeys = Object.keys(profiles);
-            var dropdown = document.getElementById("initials-drop");
-            var buffer = [];
-            for (var index = 0; index < profilesKeys.length; index++) {
-                var profile = profilesKeys[index];
-                var profileS = beautify(profile);
+            const initials = result.initials || {};
+            const profiles = initials.$profiles || {};
+            const profilesKeys = Object.keys(profiles);
+            const dropdown = document.getElementById("initials-drop");
+            const buffer = [];
+            for (let index = 0; index < profilesKeys.length; index++) {
+                const profile = profilesKeys[index];
+                const profileS = beautify(profile);
                 buffer.push('<li data-value="' + profile + '"><span>' + profileS + "</span></li>");
             }
-            var innerHTML = buffer.join("");
+            const innerHTML = buffer.join("");
             dropdown.innerHTML = innerHTML;
             dropdown.dispatchEvent(new Event("update"));
             if (profilesKeys.length === 0) {
@@ -561,6 +555,22 @@ window.onload = function() {
                 dropdown.dispatchEvent(new Event("enable"));
             }
         });
+    };
+
+    /**
+     * Updates the render mode in usage for the current viewport
+     * according to the currently set render mode (global variable).
+     */
+    const updateRenderMode = function() {
+        if (renderMode === "prc") {
+            elementCSR.style.display = "none";
+            elementPRC.style.display = "inline-block";
+            configuratorPRC.resize();
+        } else if (renderMode === "csr") {
+            elementPRC.style.display = "none";
+            elementCSR.style.display = "inline-block";
+            configuratorCSR.resize();
+        }
     };
 
     // starts the loading process for the RIPE main instance and binds

@@ -6,8 +6,9 @@ if (
         (typeof navigator !== "undefined" && navigator.product === "ReactNative"))
 ) {
     // eslint-disable-next-line no-redeclare
-    var base = require("../base");
+    const base = require("../../base");
     // eslint-disable-next-line no-redeclare
+    // eslint-disable-next-line no-var
     var ripe = base.ripe;
 }
 
@@ -23,15 +24,14 @@ if (
  * asset manager.
  */
 ripe.CSRAssetManager = function(configurator, owner, options) {
+    // there must be a model configuration, otherwise an error will occur
+    // in case there's not throws a series of exceptions
+    if (!options.assets) throw new Error("No assets definition available");
+    if (!options.assets.config) throw new Error("No valid configuration provided");
+
     this.owner = owner;
     this.configurator = configurator;
     this.assetsPath = options.assets.path;
-    this.texturesPath =
-        this.assetsPath +
-        this.owner.brand.toLowerCase() +
-        "/textures/" +
-        this.owner.model.toLowerCase() +
-        ".glb";
 
     this.library = options.library;
     this.owner = owner;
@@ -40,14 +40,11 @@ ripe.CSRAssetManager = function(configurator, owner, options) {
     this.format = options.assets.format || "gltf";
     this.textureLoader = new this.library.TextureLoader();
 
-    // there must be a model configuration, otherwise an error will occur
-    if (!(options.assets && options.assets.config)) {
-        throw new Error("No configuration for the model was given.");
-    }
     this.modelConfig = options.assets.config;
 
     this.meshes = {};
     this.wireframes = {};
+    this.animations = {};
     this.loadedTextures = {};
     this.environmentTexture = null;
     this.loadedScene = undefined;
@@ -62,8 +59,8 @@ ripe.CSRAssetManager = function(configurator, owner, options) {
         renderer.dispose();
     }
 
-    this.animations = {};
-
+    // triggers the initial loading of the assets, according to the
+    // configuration currently set in the instance
     this._loadAssets();
 };
 
@@ -104,30 +101,44 @@ ripe.CSRAssetManager.prototype._loadAssets = async function({
     // loads the complete set of animations defined in the
     // model configuration
     for (const animation of this.modelConfig.animations) {
-        await this._loadAsset(animation, true);
+        await this._loadAsset(animation, "animation");
     }
 
     await this.configurator.initializeLoading();
 };
 
 /**
- * @ignore
+ * Loads an asset from the remote that source using a series
+ * of conventions to determine the appropriate source path.
+ *
+ * As part of the loading process the current instance internal
+ * are going to be mutated with the newly registers values.
+ *
+ * @param {String} filename The name of the asset that is going
+ * be retrieved and loaded.
+ * @param {String} kind The kind of asset to be loaded (eg `mesh`,
+ * `animation`, `texture`, etc.).
+ * @returns {Object} The asset that has been loaded.
  */
-ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAnimation = false) {
+ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind = "mesh") {
     const loadersM = {
         gltf: this.library.GLTFLoader,
         fbx: this.library.FBXLoader
     };
 
-    let type = "gltf";
-    let path = this.assetsPath + this.owner.brand.toLowerCase();
+    let type = null;
+    let path = null;
 
-    if (isAnimation) {
-        path += "/animations/" + this.owner.model.toLowerCase() + "/" + filename;
-    } else {
-        path = this.owner.getMeshUrl({
-            variant: "$base"
-        });
+    switch (kind) {
+        case "animation":
+            path = `${this.assetsPath}${this.owner.brand}/animations/${this.owner.model}/${filename}`;
+            break;
+
+        case "mesh":
+        default:
+            path = this.owner.getMeshUrl({
+                variant: "$base"
+            });
     }
 
     // tries to determine the proper type of file that is represented
@@ -151,31 +162,44 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, isAn
         );
     });
 
-    if (isAnimation) {
-        // "gathers" the first animation of the asset as the main,
-        // the one that is going to be store in memory
-        this.animations[filename] = asset.animations[0];
-    } else {
-        // adds embedded animations in the file to animations
-        // array
-        for (const anim in asset.animations) {
-            const animName = asset.animations[anim].name;
+    switch (kind) {
+        case "animation":
+            // "gathers" the first animation of the asset as the main,
+            // the one that is going to be store in memory
+            this.animations[filename] = asset.animations[0];
 
-            // only load animations that have a name
-            if (!animName) continue;
+            // if it is a mesh related animation it must be added to the set
+            // of animations associated with the currently loaded scene
+            if (filename.includes("mesh_")) {
+                this.loadedScene.animations.push(asset.animations[0]);
+            }
 
-            this.animations[animName] = asset.animations[anim];
-        }
+            break;
 
-        // for the glTF assets a small hack is required so
-        // the asset in question is the scene, this is required
-        // because glTF is a packaging format for multiple assets
-        // and we're only concerted with the scene here
-        if (type === "gltf") asset = asset.scene;
+        case "mesh":
+        default:
+            // adds embedded animations in the file to animations
+            // array
+            for (const anim in asset.animations) {
+                const animName = asset.animations[anim].name;
 
-        // updates the loaded scene variable with the assets
-        // that have just been loaded
-        this.loadedScene = asset;
+                // only load animations that have a name
+                if (!animName) continue;
+
+                this.animations[animName] = asset.animations[anim];
+            }
+
+            // for the glTF assets a small hack is required so
+            // the asset in question is the scene, this is required
+            // because glTF is a packaging format for multiple assets
+            // and we're only concerted with the scene here
+            if (type === "gltf") asset = asset.scene;
+
+            // updates the loaded scene variable with the assets
+            // that has just been loaded (and resets animations)
+            this.loadedScene = asset;
+
+            break;
     }
 
     // returns the asset that has been loaded to the caller
@@ -230,6 +254,8 @@ ripe.CSRAssetManager.prototype._loadSubMeshes = function(scene = null) {
         // the mesh name (part) with the sub-mesh
         this.meshes[child.name] = child;
     });
+
+    console.info(`Loaded ${Object.keys(this.meshes).length} meshes`);
 };
 
 ripe.CSRAssetManager.prototype._loadWireframes = function(scene = null, visible = false) {
@@ -335,13 +361,16 @@ ripe.CSRAssetManager.prototype.disposeResources = async function() {
 };
 
 /**
- * Iterates through the loaded scene and checks if there is any element of
- * the scene that matches the part's name.
+ * Iterates through the loaded scene and checks if there is any
+ * element of the scene that matches the part's name.
  *
- * @param {string} part Name of the part to be analysed.
+ * @param {String} part Name of the part to be analysed.
+ * @param {Array} suffixes The sequence of suffixes that are going
+ * to be tolerated at the end of the mesh name, so that for instance
+ * a mesh name `side_part` is a valid mesh for the `side` part.
  * @returns {Mesh} The mesh for the requested name.
  */
-ripe.CSRAssetManager.prototype.getPart = function(part) {
+ripe.CSRAssetManager.prototype.getPart = function(part, suffixes = ["", "_part"]) {
     // considers the scene to be the children of the first
     // child of the loaded scene (convention)
     const scene = this.loadedScene.children[0].children;
@@ -349,7 +378,10 @@ ripe.CSRAssetManager.prototype.getPart = function(part) {
     // iterate through the children of the scene, and check if the
     // part is present in the scene structure
     for (const mesh of scene) {
-        if (mesh.name === part || mesh.name === part + "_part") return mesh;
+        for (const suffix of suffixes) {
+            const isValid = mesh.name === `${part}${suffix}`;
+            if (isValid) return mesh;
+        }
     }
 
     // returns an invalid value as the default return value,
@@ -472,6 +504,7 @@ ripe.CSRAssetManager.prototype._storePartsColors = function() {
  */
 ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color) {
     let materialConfig;
+    let newMaterial;
 
     // if the default mode is requested, the model config only
     // requires the part
@@ -486,23 +519,19 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
         materialConfig = this.modelConfig[part][type][color];
     }
 
-    let newMaterial;
-
     // follows specular-glossiness workflow
     if (materialConfig.specularMap || materialConfig.specular) {
         newMaterial = new this.library.MeshPhongMaterial();
     }
-    // otherwise follows PBR workflow
+    // otherwise follows PBR workflow, considered to be a
+    // standard material with the THREE.js library
     else {
         newMaterial = new this.library.MeshPhysicalMaterial();
     }
 
-    const basePath =
-        this.assetsPath +
-        this.owner.brand.toLowerCase() +
-        "/textures/" +
-        this.owner.model.toLowerCase() +
-        "/";
+    // builds the base relative path for the loading of textures
+    // using a pre-defined convention for the structure
+    const basePath = `${this.assetsPath}${this.owner.brand}/textures/${this.owner.model}/`;
 
     for (const prop in materialConfig) {
         // if it's a map, loads and applies the texture
@@ -592,8 +621,7 @@ ripe.CSRAssetManager.prototype.getColorFromProperty = function(value) {
  */
 ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer, environment) {
     this.pmremGenerator = new this.library.PMREMGenerator(renderer);
-    const environmentMapPath =
-        this.assetsPath + this.owner.brand + "/environments/" + environment + ".hdr";
+    const environmentMapPath = `${this.assetsPath}${this.owner.brand}/environments/${environment}.hdr`;
 
     const rgbeLoader = new this.library.RGBELoader();
     const texture = await new Promise((resolve, reject) => {
