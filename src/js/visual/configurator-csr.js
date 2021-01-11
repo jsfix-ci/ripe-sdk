@@ -112,8 +112,12 @@ ripe.ConfiguratorCSR.prototype.init = function() {
     // to be used for the CSR interactive experience
     this.renderer = new ripe.CSR(this.owner, this.element, this.options);
     this.initials = new ripe.CSRInitials(this.owner, this.options);
-    this.assetManager = new ripe.CSRAssetManager(this, this.owner, this.options);
     this.controls = new ripe.CSRControls(this, this.element, this.options);
+    this.assetManager = new ripe.CSRAssetManager(this, this.owner, this.options);
+
+    // triggers the initial loading of the assets, according to the
+    // configuration currently set in the instance
+    this.assetManager.loadAssets(this.renderer.scene);
 };
 
 /**

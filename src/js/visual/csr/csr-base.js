@@ -57,6 +57,7 @@ ripe.CSR = function(owner, element, options) {
     this.radius = 1;
     this.postProcessing = options.postProcessing === undefined ? true : options.postProcessing;
 
+    this.usesScene = options.assets.scene !== undefined;
     this.postProcessLib = options.postProcessingLibrary;
     this._setPostProcessOptions(options);
 
@@ -64,7 +65,6 @@ ripe.CSR = function(owner, element, options) {
 
     // starts the raycasting related values
     this.intersectedPart = null;
-    this.raycastingMeshes = [];
 
     this.debug = options.debug || false;
 
@@ -75,6 +75,8 @@ ripe.CSR = function(owner, element, options) {
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
     this.gui = new ripe.CSRGui(this, options);
+
+    this.scene = new this.library.Scene();
 };
 
 ripe.CSR.prototype = ripe.build(ripe.Observable.prototype);
@@ -111,7 +113,7 @@ ripe.CSR.prototype.updateOptions = async function(options) {
  */
 ripe.CSR.prototype.initialize = async function(assetManager) {
     this.assetManager = assetManager;
-    this.scene = new this.library.Scene();
+
     this.raycaster = new this.library.Raycaster();
 
     this._createLoops();
@@ -211,7 +213,6 @@ ripe.CSR.prototype._createLoops = function() {
  */
 ripe.CSR.prototype.disposeResources = async function() {
     this.renderer.renderLists.dispose();
-
     for (const program of this.renderer.info.programs) {
         program.destroy();
     }
@@ -219,7 +220,6 @@ ripe.CSR.prototype.disposeResources = async function() {
     this.renderer.info.reset();
 
     this.renderer.dispose();
-
     this.renderer = null;
     this.composer = null;
 
@@ -231,10 +231,6 @@ ripe.CSR.prototype.disposeResources = async function() {
     this.previousSceneFBO.dispose();
     this.nextSceneFBO.texture.dispose();
     this.nextSceneFBO.dispose();
-
-    for (const raycastingMesh of this.raycastingMeshes) {
-        await this.assetManager.disposeMesh(raycastingMesh);
-    }
 
     await this.assetManager.disposeScene(this.scene);
 };
@@ -294,7 +290,7 @@ ripe.CSR.prototype.highlight = function(part) {
         return;
     }
 
-    const material = this.assetManager.meshes[part].material;
+    const material = part.material;
     const r = this.assetManager.partsColors[material.uuid][0] * (1 - this.maskOpacity);
     const g = this.assetManager.partsColors[material.uuid][1] * (1 - this.maskOpacity);
     const b = this.assetManager.partsColors[material.uuid][2] * (1 - this.maskOpacity);
@@ -326,7 +322,7 @@ ripe.CSR.prototype.lowlight = function() {
         return;
     }
 
-    const material = this.assetManager.meshes[this.intersectedPart].material;
+    const material = this.intersectedPart.material;
 
     const r = this.assetManager.partsColors[material.uuid][0];
     const g = this.assetManager.partsColors[material.uuid][1];
@@ -667,13 +663,9 @@ ripe.CSR.prototype._registerHandlers = function() {
  * that pertain to rendering, such as loading the environment and the animations.
  */
 ripe.CSR.prototype._loadAssets = async function() {
-    for (const mesh in this.assetManager.meshes) {
-        this.raycastingMeshes.push(this.assetManager.meshes[mesh]);
+    if (this.scene) {
+        this.mixer = new this.library.AnimationMixer(this.scene);
     }
-
-    this.scene.add(this.assetManager.loadedScene);
-
-    this.mixer = new this.library.AnimationMixer(this.assetManager.loadedScene);
 
     if (this.environment) {
         await this.assetManager.setupEnvironment(this.scene, this.renderer, this.environment);
@@ -786,7 +778,8 @@ ripe.CSR.prototype._initializeRenderer = function() {
         antialias: false,
         stencil: false,
         depth: true,
-        alpha: true
+        alpha: true,
+        physicallyCorrectLights: true
     });
 
     const width = this.element.getBoundingClientRect().width;
@@ -919,7 +912,7 @@ ripe.CSR.prototype._initializeCameras = function() {
     const width = this.element.getBoundingClientRect().width;
     const height = this.element.getBoundingClientRect().height;
 
-    this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 1, 20000);
+    this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 1000);
     this.camera.position.set(0, this.cameraHeight, this.initialDistance);
     this.camera.far = 500;
 
@@ -975,12 +968,11 @@ ripe.CSR.prototype._getAnimationByName = function(name) {
  */
 ripe.CSR.prototype._performAnimation = function(animationName) {
     const animation = this._getAnimationByName(animationName);
-    const mixer = new this.library.AnimationMixer(this.assetManager.loadedScene);
 
     if (!animation) return;
 
     const clock = new this.library.Clock();
-    const action = mixer.clipAction(animation);
+    const action = this.mixer.clipAction(animation);
 
     // initialize variables
     clock.start();
@@ -1015,7 +1007,7 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
         }
 
         delta = clock.getDelta();
-        mixer.update(delta);
+        this.mixer.update(delta);
 
         if (!action.paused) {
             this.needsRenderUpdate = true;
@@ -1046,11 +1038,10 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // configurator main DOM element
     const animating = this.element.classList.contains("animating");
     const dragging = this.element.classList.contains("drag");
-    const noRaycasting = this.element.classList.contains("no-raycast");
 
     // prevents raycasting can be used to improve performance, as this operation
     // can be done every frame
-    if (animating || dragging || noRaycasting) return;
+    if (animating || dragging) return;
 
     // runs a series of pre-validation for the execution of the raycasting
     // if any of them fails returns immediately (not possible to ray cast)
@@ -1075,12 +1066,11 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // runs the raycasting operation trying to "see" if there's at least one match
     // with a "valid" sub meshes representative of a model's part
     this.raycaster.setFromCamera(coordinates, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.raycastingMeshes);
+    const intersects = this.raycaster.intersectObjects(this.assetmanager.raycastingMeshes);
 
     // in case the cast unique identifier is no longer the same it means
     // that we should ignore it's result (as this is casting is outdated)
     if (castId !== this._castId) return;
-
     // in case no intersection occurs then a lowlight is performed (click outside scope)
     // and the control flow is immediately returned to caller method
     if (intersects.length === 0) {
@@ -1091,8 +1081,8 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // captures the name of the intersected part/sub-mesh and
     // verifies if it's not the same as the currently highlighted
     // one, if that's the case no action is taken
-    const intersectedPart = intersects[0].object.name;
-    const isSame = intersectedPart === this.intersectedPart;
+    const currentIntersection = intersects[0].object;
+    const isSame = this.intersectedPart && currentIntersection.name === this.intersectedPart.name;
     if (isSame) return;
 
     // "lowlights" all of the parts and highlights the one that
@@ -1100,16 +1090,15 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // is different from the previous one, prevents unnecessary renders
     if (
         !this.intersectedPart ||
-        this.assetManager.meshes[intersectedPart].material.uuid !==
-            this.assetManager.meshes[this.intersectedPart].material.uuid
+        currentIntersection.material.uuid !== this.intersectedPart.material.uuid
     ) {
         this.lowlight();
-        this.highlight(intersectedPart);
+        this.highlight(currentIntersection);
     }
 
     // "saves" the currently selected part so that it can be
     // latter used to detect duplicated highlighting (performance)
-    this.intersectedPart = intersectedPart;
+    this.intersectedPart = currentIntersection;
 };
 
 /**

@@ -385,7 +385,10 @@ ripe.CSRControls.prototype._parseDrag = function() {
 };
 
 /**
+ *
  * Called from the configurator, calls the correct function to update the rotations.
+ * @param {*} frame The current frame that is selected
+ * @param {*} options Options for
  */
 ripe.CSRControls.prototype.updateRotation = function(frame, options) {
     const dragging = this.element.classList.contains("drag");
