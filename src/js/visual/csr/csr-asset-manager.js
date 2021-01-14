@@ -81,7 +81,6 @@ ripe.CSRAssetManager.prototype.updateOptions = async function(options) {
  */
 ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes = false } = {}) {
     this.scene = scene;
-    this.raycastingMeshes = [];
 
     // loads the initial mesh asset to be used as the main mesh
     // of the scene (should use the RIPE SDK for model URL) and
@@ -199,8 +198,8 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
             // because glTF is a packaging format for multiple assets
             // and we're only concerted with the scene here
             if (type === "gltf") asset = asset.scene;
-            
-            // traverses scene to set shadows to meshses and add them to 
+
+            // traverses scene to set shadows to meshses and add them to
             // raycasting structures
             asset.traverse(child => {
                 // add empties to raycasting structure, as this is what is used
@@ -216,10 +215,10 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                     child.castShadow = true;
                     child.receiveShadow = true;
                     child.visible = true;
-
-                    this.raycastingMeshes.push(child);
                 }
             });
+
+            this.raycastScene = asset;
 
             console.info(`Loaded ${meshCount} meshes.`);
 
@@ -364,21 +363,21 @@ ripe.CSRAssetManager.prototype.disposeResources = async function() {
  * a mesh name `side_part` is a valid mesh for the `side` part.
  * @returns {Mesh} The mesh for the requested name.
  */
-ripe.CSRAssetManager.prototype.getPart = function(part, suffixes = ["", "_part"]) {
+ripe.CSRAssetManager.prototype.getPart = function(partName, suffixes = ["", "_part"]) {
+    let part = null;
+
     // iterate through the children of the scene, and check if the
     // part is present in the scene structure
-    for (const object of this.raycastingMeshes) {
+    this.raycastScene.traverse(child => {
         for (const suffix of suffixes) {
-            const isValid = object.name === `${part}${suffix}`;
-            if (isValid) {
-                return object;
-            }
+            const isValid = child.name === `${partName}${suffix}`;
+            if (isValid) part = child;
         }
-    }
+    });
 
     // returns an invalid value as the default return value,
     // meaning that no valid part mesh was found
-    return null;
+    return part;
 };
 
 /**
@@ -483,16 +482,16 @@ ripe.CSRAssetManager.prototype._storePartsColors = function() {
     this.partsColors = {};
 
     // iterates through all raycasting meshes, as these are the meshes
-    // and empties that belong to the object itself, and not the whole 
+    // and empties that belong to the object itself, and not the whole
     // scene, and stores the initial color value for each material
-    for (const mesh of this.raycastingMeshes) {
-        const material = mesh.material;
+    this.raycastScene.traverse(child => {
+        if (!child.isMesh || !child.material) return;
 
-        if (!material) continue;
+        const material = child.material;
 
         // maps the uuid to the base color used
         this.partsColors[material.uuid] = [material.color.r, material.color.g, material.color.b];
-    }
+    });
 };
 
 /**
@@ -570,8 +569,8 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
                 texture.flipY = false;
 
                 this.loadedTextures[mapPath] = texture;
-                
-                // since the material already has the texture, 
+
+                // since the material already has the texture,
                 // we can safely dispose it
                 texture.dispose();
             }
@@ -580,16 +579,21 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
             if (prop.includes("alpha") || prop.includes("transmission")) {
                 newMaterial.depthWrite = false;
                 newMaterial.transparent = true;
-                newMaterial.premultipliedAlpha = true;
-                newMaterial.alphaTest = 0.5;
 
-                // newMaterial.trans = this.loadedTextures[mapPath];
                 // if it is transparent, make it not cast shadows
                 const scenePart = this.getPart(part);
                 scenePart.castShadow = false;
-            }
 
-            newMaterial[prop] = this.loadedTextures[mapPath];
+                // replace opacity with the more physically accurate transmission
+                if (prop === "opacityMap" || prop === "alphaMap") {
+                    newMaterial[prop] = this.loadedTextures[mapPath];
+                    newMaterial.transmissionMap = this.loadedTextures[mapPath];
+                }
+            }
+            // if it standard opaque material
+            else {
+                newMaterial[prop] = this.loadedTextures[mapPath];
+            }
         }
         // if it's not a map, it's a property, apply it
         else {

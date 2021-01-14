@@ -71,6 +71,7 @@ ripe.CSR = function(owner, element, options) {
     this.boundingBox = undefined;
 
     this._wireframe = false;
+    this.usesGPURaycast = options.usesGPURaycast === undefined ? true : options.usesGPURaycast;
 
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
@@ -114,8 +115,6 @@ ripe.CSR.prototype.updateOptions = async function(options) {
 ripe.CSR.prototype.initialize = async function(assetManager) {
     this.assetManager = assetManager;
 
-    this.raycaster = new this.library.Raycaster();
-
     this._createLoops();
     this._initializeLights();
     this._initializeCameras();
@@ -143,6 +142,15 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
             `There is no animation present in the file with the given name '${this.introAnimation}'`
         );
     }
+
+    if (this.usesGPURaycast) {
+        // GPU Picker requires all the base structures for the CSR to
+        // be initialized
+        this.raycaster = new ripe.CSRGPUPicker(this);
+    } else {
+        this.raycaster = new this.library.Raycaster();
+    }
+    
 
     // in case an intro animation is required then performs it
     // otherwise runs the "typical" render operation
@@ -177,7 +185,7 @@ ripe.CSR.prototype._createLoops = function() {
     this.needsRaycastUpdate = false;
     this.raycastEvent = null;
     // number of seconds separating each call to trigger a raycast
-    this.raycastThreshold = 0.2;
+    this.raycastThreshold = 0.1;
 
     this.raycastLoop = () => {
         // time the last "getDelta" was called
@@ -345,19 +353,14 @@ ripe.CSR.prototype.lowlight = function() {
  *
  * The changing itself will be animated using a cross-fade animation.
  *
- * @param {String} part The name of the affected part.
+ * @param {Mesh} part The mesh of the affected part.
  * @param {Number} endValue The end value for the material color, determined by the
  * caller.
  */
 ripe.CSR.prototype.changeHighlight = function(part, endColor) {
-    // retrieve the mesh associated with the provided part
-    // in case none is found ignore the operation
-    const mesh = this.assetManager.meshes[part];
-    if (!mesh) return;
-
-    const startR = mesh.material.color.r;
-    const startG = mesh.material.color.g;
-    const startB = mesh.material.color.b;
+    const startR = part.material.color.r;
+    const startG = part.material.color.g;
+    const startB = part.material.color.b;
 
     let currentR = startR;
     let currentG = startG;
@@ -369,9 +372,9 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
     const changeHighlightTransition = time => {
         startTime = startTime === 0 ? time : startTime;
 
-        mesh.material.color.r = currentR;
-        mesh.material.color.g = currentG;
-        mesh.material.color.b = currentB;
+        part.material.color.r = currentR;
+        part.material.color.g = currentG;
+        part.material.color.b = currentB;
 
         pos = (time - startTime) / this.maskDuration;
 
@@ -1063,17 +1066,23 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // that can be used by the raycaster
     const coordinates = this._convertRaycast(event);
 
-    // runs the raycasting operation trying to "see" if there's at least one match
-    // with a "valid" sub meshes representative of a model's part
-    this.raycaster.setFromCamera(coordinates, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.assetmanager.raycastingMeshes);
+    let currentIntersection = undefined
 
-    // in case the cast unique identifier is no longer the same it means
-    // that we should ignore it's result (as this is casting is outdated)
-    if (castId !== this._castId) return;
-    // in case no intersection occurs then a lowlight is performed (click outside scope)
-    // and the control flow is immediately returned to caller method
-    if (intersects.length === 0) {
+    // process different picking strategies based on configurations
+    if (this.usesGPURaycast) {
+        const objectId = this.raycaster.pick(coordinates);
+        currentIntersection = this.assetManager.raycastScene.getObjectById(objectId);
+        console.log(currentIntersection);
+    } else {
+        this.raycaster.setFromCamera(coordinates, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.assetmanager.raycastingMeshes);
+
+        if (intersects.length > 0)
+            currentIntersection = intersects[0].object;
+    }
+
+    // did not find any intersection, return
+    if (!currentIntersection) {
         this.lowlight();
         return;
     }
@@ -1081,8 +1090,9 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // captures the name of the intersected part/sub-mesh and
     // verifies if it's not the same as the currently highlighted
     // one, if that's the case no action is taken
-    const currentIntersection = intersects[0].object;
-    const isSame = this.intersectedPart && currentIntersection.name === this.intersectedPart.name;
+    const isSame =
+        this.intersectedPart &&
+        currentIntersection.material.uuid === this.intersectedPart.material.uuid;
     if (isSame) return;
 
     // "lowlights" all of the parts and highlights the one that
@@ -1102,20 +1112,31 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
 };
 
 /**
- * Maps a mouse event to a coordinate that goes from -1 to 1 in both the X and Y
- * axis. This value will allows us to work on a normalized "world".
+ * Maps a mouse event to a coordinate that goes either goes from -1 to 1 in
+ * both the X and Y axis for the CPU picking, or from 0 to the width / height
+ * of the bounding box. 
  *
  * This method makes use of the bounding box for the normalization process.
  *
- * @param {Object} coordinates An object with the x and y non normalized values.
- * @returns {Object} An object with both the x and the y normalized values.
+ * @param {Object} coordinates An object with the raw x and y event values.
+ * @returns {Object} An object with both the x and the y normalized values for the 
+ * respective picking strategy..
  */
 ripe.CSR.prototype._convertRaycast = function(coordinates) {
+    let newX = 0
+    let newY = 0
+    // coordinates vary if using GPU or CPU picking 
+    if (this.usesGPURaycast) {
+        newX = coordinates.x - this.boundingBox.x;
+        newY = coordinates.y - this.boundingBox.y + window.scrollY;
+    }
     // the origin of the coordinate system is the center of the element,
     // coordinates range from -1,-1 (bottom left) to 1,1 (top right)
-    const newX = ((coordinates.x - this.boundingBox.x) / this.boundingBox.width) * 2 - 1;
-    const newY =
-        ((coordinates.y - this.boundingBox.y + window.scrollY) / this.boundingBox.height) * -2 + 1;
+    else {
+        newX = ((coordinates.x - this.boundingBox.x) / this.boundingBox.width) * 2 - 1;
+        newY = ((coordinates.y - this.boundingBox.y + window.scrollY) / this.boundingBox.height) * -2 + 1;
+    }
+    
     return { x: newX, y: newY };
 };
 

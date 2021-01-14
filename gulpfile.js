@@ -76,6 +76,7 @@ const paths = {
         "src/js/visual/csr/csr-base.js",
         "src/js/visual/csr/csr-gui.js",
         "src/js/visual/csr/csr-asset-manager.js",
+        "src/js/visual/csr/csr-gpu-picker.js",
         "src/js/visual/csr/csr-initials.js",
         "src/js/visual/configurator.js",
         "src/js/visual/image.js"
