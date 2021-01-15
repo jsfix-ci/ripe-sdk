@@ -204,7 +204,7 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                 // only load animations that have a name
                 if (!animName) continue;
 
-                this.animations[animName] = asset.animations[anim];
+                this.animations.set(animName, asset.animations[anim]);
             }
 
             // for the glTF assets a small hack is required so
