@@ -71,7 +71,7 @@ ripe.CSR = function(owner, element, options) {
     this.boundingBox = undefined;
 
     this._wireframe = false;
-    this.usesGPURaycast = options.usesGPURaycast === undefined ? true : options.usesGPURaycast;
+    this.raycastStrategy = options.raycastStrategy === undefined ? "gpu" : options.raycastStrategy;
 
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
@@ -143,14 +143,18 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
         );
     }
 
-    if (this.usesGPURaycast) {
-        // GPU Picker requires all the base structures for the CSR to
-        // be initialized
-        this.raycaster = new ripe.CSRGPUPicker(this);
-    } else {
-        this.raycaster = new this.library.Raycaster();
+    // coordinates vary if using GPU or CPU picking
+    switch (this.raycastStrategy) {
+        case "cpu":
+            this.raycaster = new this.library.Raycaster();
+            break;
+        case "gpu":
+        default:
+            // GPU Picker requires all the base structures for the CSR to
+            // be initialized
+            this.raycaster = new ripe.CSRGPUPicker(this);
+            break;
     }
-    
 
     // in case an intro animation is required then performs it
     // otherwise runs the "typical" render operation
@@ -917,7 +921,7 @@ ripe.CSR.prototype._initializeCameras = function() {
 
     this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 1000);
     this.camera.position.set(0, this.cameraHeight, this.initialDistance);
-    
+
     if (this.element.dataset.view === "side") {
         this._currentVerticalRot = 0;
         this.verticalRot = 0;
@@ -1065,18 +1069,17 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     // that can be used by the raycaster
     const coordinates = this._convertRaycast(event);
 
-    let currentIntersection = undefined
+    let currentIntersection;
 
     // process different picking strategies based on configurations
-    if (this.usesGPURaycast) {
-        const objectId = this.raycaster.pick(coordinates);
-        currentIntersection = this.assetManager.raycastScene.getObjectById(objectId);
-    } else {
+    if (this.raycastStrategy == "cpu") {
         this.raycaster.setFromCamera(coordinates, this.camera);
         const intersects = this.raycaster.intersectObjects(this.assetmanager.raycastingMeshes);
 
-        if (intersects.length > 0)
-            currentIntersection = intersects[0].object;
+        if (intersects.length > 0) currentIntersection = intersects[0].object;
+    } else {
+        const objectId = this.raycaster.pick(coordinates);
+        currentIntersection = this.assetManager.raycastScene.getObjectById(objectId);
     }
 
     // did not find any intersection, return
@@ -1112,29 +1115,36 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
 /**
  * Maps a mouse event to a coordinate that goes either goes from -1 to 1 in
  * both the X and Y axis for the CPU picking, or from 0 to the width / height
- * of the bounding box. 
+ * of the bounding box.
  *
  * This method makes use of the bounding box for the normalization process.
  *
  * @param {Object} coordinates An object with the raw x and y event values.
- * @returns {Object} An object with both the x and the y normalized values for the 
+ * @returns {Object} An object with both the x and the y normalized values for the
  * respective picking strategy..
  */
 ripe.CSR.prototype._convertRaycast = function(coordinates) {
-    let newX = 0
-    let newY = 0
-    // coordinates vary if using GPU or CPU picking 
-    if (this.usesGPURaycast) {
-        newX = coordinates.x - this.boundingBox.x;
-        newY = coordinates.y - this.boundingBox.y + window.scrollY;
+    let newX = 0;
+    let newY = 0;
+
+    // coordinates vary if using GPU or CPU picking
+    switch (this.raycastStrategy) {
+        case "cpu":
+            // the origin of the coordinate system is the center of the element,
+            // coordinates range from -1,-1 (bottom left) to 1,1 (top right)
+            newX = ((coordinates.x - this.boundingBox.x) / this.boundingBox.width) * 2 - 1;
+            newY =
+                ((coordinates.y - this.boundingBox.y + window.scrollY) / this.boundingBox.height) *
+                    -2 +
+                1;
+            break;
+        case "gpu":
+        default:
+            newX = coordinates.x - this.boundingBox.x;
+            newY = coordinates.y - this.boundingBox.y + window.scrollY;
+            break;
     }
-    // the origin of the coordinate system is the center of the element,
-    // coordinates range from -1,-1 (bottom left) to 1,1 (top right)
-    else {
-        newX = ((coordinates.x - this.boundingBox.x) / this.boundingBox.width) * 2 - 1;
-        newY = ((coordinates.y - this.boundingBox.y + window.scrollY) / this.boundingBox.height) * -2 + 1;
-    }
-    
+
     return { x: newX, y: newY };
 };
 
