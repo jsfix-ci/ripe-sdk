@@ -36,6 +36,12 @@ ripe.CSRAssetManager = function(configurator, owner, options) {
     this.library = options.library;
     this.owner = owner;
 
+    this.usesBuild = options.usesBuild === undefined ? true : options.usesBuild;
+    // model path can only be passed if it does not use a config
+    if (!this.usesConfig) {
+        this.modelPath = options.modelPath;
+    }
+
     this.assetsPath = options.assets.path || "";
     this.format = options.assets.format || "gltf";
     this.textureLoader = new this.library.TextureLoader();
@@ -89,13 +95,17 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
     if (this.environmentScene) await this._loadAsset(this.environmentScene, "scene");
     if (wireframes) this._loadWireframes(asset);
 
-    // sets the materials for the first time
-    await this.setMaterials(this.owner.parts);
-
-    // loads the complete set of animations defined in the
-    // model configuration
-    for (const animation of this.modelConfig.animations) {
-        await this._loadAsset(animation, "animation");
+    // sets the materials for the first time, if the model uses build
+    if (this.usesBuild) {
+        await this.setMaterials(this.owner.parts);
+    
+        // loads the complete set of animations defined in the
+        // model configuration
+        for (const animation of this.modelConfig.animations) {
+            await this._loadAsset(animation, "animation");
+        }
+    } else {
+        this._storePartsColors();
     }
 
     this.configurator.initializeLoading();
@@ -132,9 +142,14 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
             break;
         case "mesh":
         default:
-            path = this.owner.getMeshUrl({
-                variant: "$base"
-            });
+            if (this.usesBuild) {
+                path = this.owner.getMeshUrl({
+                    variant: "$base"
+                });
+            } else {
+                path = `${this.assetsPath}${this.modelPath}`;
+                console.log(path)
+            }
     }
 
     // tries to determine the proper type of file that is represented

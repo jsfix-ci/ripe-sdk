@@ -917,8 +917,7 @@ ripe.CSR.prototype._initializeCameras = function() {
 
     this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 1000);
     this.camera.position.set(0, this.cameraHeight, this.initialDistance);
-    this.camera.far = 500;
-
+    
     if (this.element.dataset.view === "side") {
         this._currentVerticalRot = 0;
         this.verticalRot = 0;
@@ -1072,7 +1071,6 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     if (this.usesGPURaycast) {
         const objectId = this.raycaster.pick(coordinates);
         currentIntersection = this.assetManager.raycastScene.getObjectById(objectId);
-        console.log(currentIntersection);
     } else {
         this.raycaster.setFromCamera(coordinates, this.camera);
         const intersects = this.raycaster.intersectObjects(this.assetmanager.raycastingMeshes);
