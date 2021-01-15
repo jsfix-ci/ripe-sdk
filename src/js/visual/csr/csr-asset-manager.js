@@ -184,6 +184,12 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
         case "scene":
             // traverses the scene to add shadows to the loaded meshes
             asset.scene.traverse(child => {
+                if (child.isLight) {
+                    child.castShadow = true;
+                    child.shadow.mapSize.width = 1024;
+                    child.shadow.mapSize.height = 1024;
+                }
+
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
@@ -216,10 +222,12 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
             // traverses scene to set shadows to meshses and add them to
             // raycasting structures
             asset.traverse(child => {
-                // add empties to raycasting structure, as this is what is used
-                // for setting the materials, and not the entire scene, as this
-                // may contain unnecessary information, such as the armature and
-                // an environment scene
+                // if it contains lights make them cast shadows
+                if (child.isLight) {
+                    child.castShadow = true;
+                    child.shadow.mapSize.width = 1024;
+                    child.shadow.mapSize.height = 1024;
+                }
 
                 if (child.isMesh || child.type === "Object3D") {
                     meshCount++;
