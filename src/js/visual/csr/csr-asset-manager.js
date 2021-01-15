@@ -215,6 +215,10 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                     child.castShadow = true;
                     child.receiveShadow = true;
                     child.visible = true;
+
+                    // remove frustum culling to prevent incorrect 
+                    // culling on skinned meshes
+                    child.frustumCulled = false;
                 }
             });
 
