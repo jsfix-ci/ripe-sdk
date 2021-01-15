@@ -423,7 +423,10 @@ window.onload = function() {
                     materialEasing: "easeInOutQuad",
                     crossfadeEasing: "easeInOutQuad",
                     initialsPlacement: "center",
-                    introAnimation: "santos_explode.glb",
+                    // 'animation' is an extra parameter
+                    animation: "santos_explode.glb",
+                    playsAnimation: true,
+                    animationLoops: true,
                     environment: "chinese_garden",
                     maskOpacity: 0.7
                 },

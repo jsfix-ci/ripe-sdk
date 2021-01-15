@@ -267,6 +267,7 @@ ripe.CSRControls.prototype._registerHandlers = function() {
                 Math.min(self.cameraDistance + event.deltaY, self.maxDistance),
                 self.minDistance
             );
+
             self.configurator.rotate(
                 {
                     rotationX: self.currentHorizontalRot,

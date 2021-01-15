@@ -49,7 +49,7 @@ ripe.CSRAssetManager = function(configurator, owner, options) {
     this.modelConfig = options.assets.config;
 
     this.wireframes = {};
-    this.animations = {};
+    this.animations = new Map();
     this.loadedTextures = {};
     this.environmentTexture = null;
     this.environmentScene = options.assets.scene === undefined ? null : options.assets.scene;
@@ -98,7 +98,7 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
     // sets the materials for the first time, if the model uses build
     if (this.usesBuild) {
         await this.setMaterials(this.owner.parts);
-    
+
         // loads the complete set of animations defined in the
         // model configuration
         for (const animation of this.modelConfig.animations) {
@@ -148,7 +148,6 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                 });
             } else {
                 path = `${this.assetsPath}${this.modelPath}`;
-                console.log(path)
             }
     }
 
@@ -173,12 +172,14 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
         );
     });
 
+    let meshCount = 0;
+
     switch (kind) {
         case "animation":
             // "gathers" the first animation of the asset as the main,
             // the one that is going to be store in memory
-            this.animations[filename] = asset.animations[0];
-
+            this.animations.set(filename, asset.animations[0]);
+            
             return null;
         case "scene":
             // traverses the scene to add shadows to the loaded meshes
@@ -195,8 +196,6 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
             return null;
         case "mesh":
         default:
-            let meshCount = 0;
-
             // adds embedded animations in the file to animations
             // array
             for (const anim in asset.animations) {
@@ -231,7 +230,7 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                     child.receiveShadow = true;
                     child.visible = true;
 
-                    // remove frustum culling to prevent incorrect 
+                    // remove frustum culling to prevent incorrect
                     // culling on skinned meshes
                     child.frustumCulled = false;
                 }

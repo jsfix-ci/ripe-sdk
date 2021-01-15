@@ -19,10 +19,9 @@ if (
 }
 
 /**
- * GPU picker that enables Skinned Meshes and transparent objects 
- * to be correctly picked.
- * 
- * @param {CSR} csr The current instance of the CSR, containing 
+ * GPU picker that enables Skinned Meshes to be correctly picked.
+ *
+ * @param {CSR} csr The current instance of the CSR, containing
  * all the necessary information for the GPU picker to function correctly.
  */
 ripe.CSRGPUPicker = function(csr) {
@@ -40,7 +39,7 @@ ripe.CSRGPUPicker = function(csr) {
         encoding: this.library.LinearEncoding
     });
 
-    // empty scene to use .render in order to call renderBufferDirect in renderList() 
+    // empty scene to use .render in order to call renderBufferDirect in renderList()
     // use the onAfterRender callback to actually render geometry for picking
     this.emptyScene = new this.library.Scene();
 
@@ -48,11 +47,10 @@ ripe.CSRGPUPicker = function(csr) {
 
     this.emptyScene.onAfterRender = () => {
         // the render lists are still filled with valid data, so we can
-        // submit them again for picking 
+        // submit them again for picking
         const renderList = self.renderer.renderLists.get(self.scene, self.camera);
-        
+
         renderList.opaque.forEach(item => self.processItem(item));
-        renderList.transparent.forEach(item => self.processItem(item));
     };
 
     // RGBA is 4 channels.
@@ -65,8 +63,8 @@ ripe.CSRGPUPicker.prototype = ripe.build(ripe.Observable.prototype);
 ripe.CSRGPUPicker.prototype.constructor = ripe.CSRGPUPicker;
 
 /**
- * Raycasts an object 
- * 
+ * Raycasts an object based on coordinates.
+ *
  * @param {Object} coordinates Object containing the normalized X and Y coordinates
  * for the GPU picking process.
  */
@@ -106,17 +104,17 @@ ripe.CSRGPUPicker.prototype.pick = function(coordinates) {
 /**
  * Processes the meshes' material, and renders to an indirect buffer
  * to be used for picking.
- * 
+ *
  * @param {Object} renderItem The rendered object from the render list.
  */
 ripe.CSRGPUPicker.prototype.processItem = function(renderItem) {
-    // check if it's the environment scene 
-    if (renderItem.material.name == "BackgroundCubeMaterial") {
+    // check if it's the environment scene
+    if (renderItem.material.name === "BackgroundCubeMaterial") {
         return;
     }
 
     const object = renderItem.object;
-    
+
     if (!object.isMesh) {
         return;
     }

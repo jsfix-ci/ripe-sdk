@@ -49,7 +49,9 @@ ripe.CSR = function(owner, element, options) {
     this.useMasks = true;
     this.maskOpacity = 0.4;
     this.maskDuration = 150;
-    this.introAnimation = "";
+    this.animation = "";
+    this.playsAnimation = true;
+    this.animationLoops = true;
     this._setRenderOptions(options);
 
     this.shadowBias = 0;
@@ -121,6 +123,7 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
     this._initializeRenderer();
     this._registerHandlers();
     this._initializeShaders();
+    this._initializeRaycaster();
 
     // triggers the loading of the remote assets that are going
     // to be used in scene initialization
@@ -133,16 +136,45 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
     // web artifact like web workers for its execution
     if (this.postProcessing) await this._setupPostProcessing();
 
-    const hasAnimation = this._getAnimationByName(this.introAnimation) !== undefined;
+    if (this.playsAnimation) {
+        // in case were meant to execute an animation bt there's none
+        // available raises an exception
+        if (this.animation && this._getAnimationByName(this.animation) === undefined) {
+            throw new Error(
+                `There is no animation present in the file with the given name '${this.introAnimation}'`
+            );
+        }
 
-    // in case were meant to execute an animation bt there's none
-    // available raises an exception
-    if (!hasAnimation && this.introAnimation) {
-        throw new Error(
-            `There is no animation present in the file with the given name '${this.introAnimation}'`
-        );
+        // if specific animation is requested, check if it exists
+        const hasAnimation =
+            this.animation && this._getAnimationByName(this.animation) !== undefined;
+
+        // specific animation exists, play it
+        if (hasAnimation) {
+            this._performAnimation(this.animation);
+            return;
+        }
+
+        // try find the first animation it can find, otherwise, it's not
+        // able to play any animation, and just renders directly
+        if (this.assetManager.animations.size > 0) {
+            const animationsIterator = this.assetManager.animations.entries();
+            const animation = animationsIterator.next().value[0];
+
+            this._performAnimation(animation);
+            return;
+        }
     }
 
+    // no animation was found, render scene normally
+    this.needsRenderUpdate = true;
+};
+
+/**
+ * Creates the raycaster to be used on the scene depending on whether
+ * CPU or GPU picking is selected.
+ */
+ripe.CSR.prototype._initializeRaycaster = function() {
     // coordinates vary if using GPU or CPU picking
     switch (this.raycastStrategy) {
         case "cpu":
@@ -155,12 +187,6 @@ ripe.CSR.prototype.initialize = async function(assetManager) {
             this.raycaster = new ripe.CSRGPUPicker(this);
             break;
     }
-
-    // in case an intro animation is required then performs it
-    // otherwise runs the "typical" render operation
-    const executeAnimation = hasAnimation && this.introAnimation;
-    if (executeAnimation) this._performAnimation(this.introAnimation);
-    else this.needsRenderUpdate = true;
 };
 
 /**
@@ -597,6 +623,17 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
         renderOptions.introAnimation === undefined
             ? this.introAnimation
             : renderOptions.introAnimation;
+
+    this.playsAnimation =
+        renderOptions.playsAnimation === undefined
+            ? this.playsAnimation
+            : renderOptions.playsAnimation;
+    this.animationLoops =
+        renderOptions.animationLoops === undefined
+            ? this.animationLoops
+            : renderOptions.animationLoops;
+    this.animation =
+        renderOptions.animation === undefined ? this.animation : renderOptions.animation;
 };
 
 ripe.CSR.prototype._setPostProcessOptions = function(options = {}) {
@@ -945,12 +982,6 @@ ripe.CSR.prototype._initializeCameras = function() {
     );
 
     this.camera.animations = [];
-    // load camera specific animations
-    for (const animation in this.assetManager.animations) {
-        if (animation.includes("camera_")) {
-            this.camera.animations.push(this.assetManager.animations[animation]);
-        }
-    }
 };
 
 /**
@@ -960,9 +991,9 @@ ripe.CSR.prototype._initializeCameras = function() {
  * @returns {Animation} The animation for the given name.
  */
 ripe.CSR.prototype._getAnimationByName = function(name) {
-    for (const [key, value] of Object.entries(this.assetManager.animations)) {
-        if (key !== name) continue;
-        return value;
+    for (const keyValue of this.assetManager.animations.entries()) {
+        if (keyValue[0] !== name) continue;
+        return keyValue[1];
     }
     return undefined;
 };
@@ -985,8 +1016,9 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
     clock.stop();
     action.play().stop();
 
-    action.clampWhenFinished = true;
-    action.loop = this.library.LoopOnce;
+    if (!this.animationLoops) {
+        action.loop = this.library.LoopOnce;
+    }
 
     let delta = -1;
 
@@ -1072,7 +1104,7 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     let currentIntersection;
 
     // process different picking strategies based on configurations
-    if (this.raycastStrategy == "cpu") {
+    if (this.raycastStrategy === "cpu") {
         this.raycaster.setFromCamera(coordinates, this.camera);
         const intersects = this.raycaster.intersectObjects(this.assetmanager.raycastingMeshes);
 
