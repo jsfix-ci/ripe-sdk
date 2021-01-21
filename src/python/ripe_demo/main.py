@@ -18,6 +18,11 @@ class RipeDemoApp(appier.WebApp):
 
 if __name__ == "__main__":
     app = RipeDemoApp()
+    """
+    SMAA pass for the post-processing requires loading of script-src,
+    so we set that specific content security measure;    
+    """
+    app.content_security = "default-src * ws://* wss://* data: blob:; script-src blob: * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';"
     app.serve()
 else:
     __path__ = []
