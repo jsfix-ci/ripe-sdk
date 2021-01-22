@@ -45,7 +45,8 @@ ripe.CSRControls = function(csr, configurator, element, options) {
     this.canPan = true;
     this.canPivot = true;
 
-    this._previousEvent = null;
+    this._previousRotEvent = null;
+    this._previousPanEvent = null;
 
     this._setControlsOptions(options);
     this._registerHandlers();
@@ -65,14 +66,11 @@ ripe.CSRControls = function(csr, configurator, element, options) {
     this.currRotation = this.targetRotation.clone();
 
     // camera target and panning variables
+    this.targetPan = this.referenceCameraTarget.clone();
+    this.currentPan = this.referenceCameraTarget.clone();
+
     this.isPanning = false;
-    this.panTarget = this.referenceCameraTarget.clone();
-
-    // smooth rotation timers
     this.isRotating = false;
-    this.startingRotTime = -1;
-
-    // smooth scroll timers, scroll time is constant
     this.isScrolling = false;
 
     this.maxDriftTime = 0.6;
@@ -176,15 +174,16 @@ ripe.CSRControls.prototype._registerHandlers = function() {
 
         if (animating) return;
 
-        self._previousEvent = event;
         _element.dataset.view = _element.dataset.view || "side";
 
         // differentiate between normal click and middle click
         // as the latter pans and not
         if (event.which === 2 && self.canPan) {
             self.middleDown = true;
+            self._previousPanEvent = event;
         } else {
             self.down = true;
+            self._previousRotEvent = event;
         }
 
         _element.classList.add("drag");
@@ -200,7 +199,8 @@ ripe.CSRControls.prototype._registerHandlers = function() {
 
         event = ripe.fixEvent(event);
 
-        self._previousEvent = undefined;
+        // self._previousPanEvent = undefined;
+        // self._previousRotEvent = undefined;
     });
 
     // listens for mouse leave events and if it occurs then
@@ -208,7 +208,10 @@ ripe.CSRControls.prototype._registerHandlers = function() {
     area.addEventListener("mouseout", function(event) {
         this.classList.remove("drag");
 
+        self.middleDown = false;
         self.down = false;
+        // self._previousPanEvent = undefined;
+        // self._previousRotEvent = undefined;
     });
 
     // listens for mouse enter events and if it occurs then
@@ -230,10 +233,6 @@ ripe.CSRControls.prototype._registerHandlers = function() {
             self._parseDrag(event);
         } else if (self.middleDown) {
             self._parsePan(event);
-        } else {
-            // if it is not dragging
-            self.targetDiffX = 0;
-            self.targetDiffY = 0;
         }
     });
 
@@ -287,7 +286,8 @@ ripe.CSRControls.prototype.performSimpleRotation = function() {
     const options = {
         rotationX: this.currRotation.x,
         rotationY: this.currRotation.y,
-        distance: this.currentDistance
+        distance: this.currentDistance,
+        target: this.currentPan
     };
 
     this.csr.rotate(options);
@@ -318,10 +318,8 @@ ripe.CSRControls.prototype.createLoop = function() {
         if (!this.isPanning && !this.isRotating && !this.isScrolling) return;
 
         if (this.isRotating) this.updateRotation();
-        // panning and rotating are mutually exclusive, as the camera
-        // target would be inconsistent
-        // rotation takes priority
-        else if (this.isPanning) this.updatePan();
+
+        if (this.isPanning) this.updatePan();
 
         if (this.isScrolling) this.updateDistance();
 
@@ -330,9 +328,21 @@ ripe.CSRControls.prototype.createLoop = function() {
 };
 
 ripe.CSRControls.prototype.updatePan = function() {
+    const xDiff = this.targetPan.x - this.currentPan.x;
+    const yDiff = this.targetPan.y - this.currentPan.y;
+    const zDiff = this.targetPan.z - this.currentPan.z;
+
+    const continuesPanning =
+        Math.abs(xDiff) > 0.01 || Math.abs(yDiff) > 0.01 || Math.abs(zDiff) > 0.01;
+
     // updates pan
-    if (!this.panTarget.equals(this.currentPan)) {
-        // console.log("panning?")
+    if (continuesPanning) {
+        this.currentPan.x += xDiff / 5;
+        this.currentPan.y += yDiff / 5;
+        this.currentPan.z += zDiff / 5;
+    } else {
+        this.currentPan.copy(this.targetPan);
+        this.isPanning = false;
     }
 };
 
@@ -350,15 +360,15 @@ ripe.CSRControls.prototype.updateDistance = function() {
 };
 
 ripe.CSRControls.prototype.updateRotation = function() {
-    const diffX = this.targetRotation.x - this.currRotation.x;
-    const diffY = this.targetRotation.y - this.currRotation.y;
+    const xDiff = this.targetRotation.x - this.currRotation.x;
+    const yDiff = this.targetRotation.y - this.currRotation.y;
 
-    const continuesRotating = Math.abs(diffX) > 0.01 || Math.abs(diffY) > 0.01;
+    const continuesRotating = Math.abs(xDiff) > 0.01 || Math.abs(yDiff) > 0.01;
 
     if (continuesRotating) {
-        this.currRotation.x += diffX / 5;
+        this.currRotation.x += xDiff / 5;
 
-        this.currRotation.y = this.validVericalAngle(this.currRotation.y + diffY / 5);
+        this.currRotation.y = this.validVericalAngle(this.currRotation.y + yDiff / 5);
     } else {
         this.isRotating = false;
         // reset angles to normal bounds
@@ -371,8 +381,6 @@ ripe.CSRControls.prototype.updateRotation = function() {
 };
 
 ripe.CSRControls.prototype._parseScroll = function(event) {
-    if (!this.element.classList.contains("animating")) this.element.classList.add("animating");
-
     this.isScrolling = true;
 
     const increase = (this.maxDistance - this.minDistance) / 10;
@@ -384,16 +392,33 @@ ripe.CSRControls.prototype._parseScroll = function(event) {
     );
 };
 
-ripe.CSRControls.prototype._parsePan = function(event) {
-    if (!this.element.classList.contains("animating")) this.element.classList.add("animating");
+ripe.CSRControls.prototype.deg2rad = function(degrees) {
+    return degrees * (Math.PI / 180);
+};
 
-    console.log(event);
+ripe.CSRControls.prototype._parsePan = function(event) {
+    if (!this.element.classList.contains("drag")) this.element.classList.add("drag");
+
+    this.isPanning = true;
+
+    const newX = (event.x - this._previousPanEvent.x) / 30;
+    const newY = (event.y - this._previousPanEvent.y) / 30;
+
+    const radX = this.currRotation.x * (Math.PI / 180);
+    const radY = this.currRotation.y * (Math.PI / 180);
+
+    this.targetPan.x += newX * Math.cos(radX);
+    this.targetPan.y += newY * Math.cos(radY) * -1;
+    this.targetPan.z += newX * Math.sin(radX);
+
+    // after all the calculations are done, update the previous event
+    this._previousPanEvent = event;
 };
 
 ripe.CSRControls.prototype._parseDrag = function(event) {
     this.isRotating = true;
 
-    if (!this.element.classList.contains("animating")) this.element.classList.add("animating");
+    if (!this.element.classList.contains("drag")) this.element.classList.add("drag");
 
     // set the new values as the normal
     // this.baseRotation.set(this.targetRotation.x, this.targetRotation.y)
@@ -403,9 +428,9 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
 
     // only use the rotation that matters according to the locked
     // rotation axis
-    if (this.lockRotation !== "vertical") newX = event.x - this._previousEvent.x;
+    if (this.lockRotation !== "vertical") newX = event.x - this._previousRotEvent.x;
 
-    if (this.lockRotation !== "horizontal") newY = event.y - this._previousEvent.y;
+    if (this.lockRotation !== "horizontal") newY = event.y - this._previousRotEvent.y;
 
     this.targetRotation.x = this.targetRotation.x + newX;
     this.targetRotation.y = Math.min(
@@ -414,7 +439,7 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
     );
 
     // after all the calculations are done, update the previous event
-    this._previousEvent = event;
+    this._previousRotEvent = event;
 };
 
 /**

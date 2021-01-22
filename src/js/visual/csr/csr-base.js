@@ -1016,16 +1016,20 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
 ripe.CSR.prototype.rotate = function(options) {
     const maxHeight = options.distance - this.cameraHeight;
 
-    const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
-    this.camera.position.x = distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
-    this.camera.position.y =
-        this.cameraHeight + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
-    this.camera.position.z = distance * Math.cos((Math.PI / 180) * options.rotationX);
-
     // update to camera target, recenter
-    if (options.cameraTarget) this.cameraTarget = options.cameraTarget;
+    if (options.target) {
+        this.cameraTarget = options.target;
+        this.camera.lookAt(this.cameraTarget);
+    }
 
-    this.camera.lookAt(this.cameraTarget);
+    const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
+    this.camera.position.x =
+        this.cameraTarget.x + distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
+    this.camera.position.y =
+        this.cameraTarget.y + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
+    this.camera.position.z =
+        this.cameraTarget.z + distance * Math.cos((Math.PI / 180) * options.rotationX);
+
     this.needsRenderUpdate = true;
 
     // update position and view information
