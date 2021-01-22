@@ -164,7 +164,7 @@ ripe.ConfiguratorCSR.prototype.updateOptions = async function(options, update = 
     ripe.Visual.prototype.updateOptions.call(this, options);
 
     this.csr.updateOptions(options);
-    
+
     this.width = options.width === undefined ? this.width : options.width;
     this.height = options.height === undefined ? this.height : options.height;
     this.format = options.format === undefined ? this.format : options.format;
@@ -230,7 +230,7 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
         this.csr.updateInitials("add", this.initials.textMeshes);
         this.csr.needsRenderUpdate = true;
     }
-    
+
     // removes the highlight support from the matched object as a new
     // frame is going to be "calculated" and rendered (not same mask)
     this.csr.lowlight();
@@ -243,7 +243,7 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
 /**
  * Updates the elements dataset position and view when rotating or changing views.
  */
-ripe.ConfiguratorCSR.prototype.updateViewPosition = function(newPos, newView) {
+ripe.ConfiguratorCSR.prototype.updateViewPosition = function(newView, newPos) {
     this.position = newPos;
     this.view = newView;
 
@@ -388,10 +388,10 @@ ripe.ConfiguratorCSR.prototype._initLayout = function() {
  * - 'safe' - If requested then the operation is only performed in case the configurator
  * is not in the an equivalent state (default to 'true').
  */
-ripe.ConfiguratorCSR.prototype.changeFrame = async function(frame, options = {}) {
+ripe.ConfiguratorCSR.prototype.changeFrame = async function(frame, _options = {}) {
     if (this.element.classList.contains("animating")) return;
 
-    this.csr.changeFrameRotation(frame, options);
+    this.csr.changeFrameRotation(frame);
 
     await this.update();
 };

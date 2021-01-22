@@ -26,7 +26,6 @@ ripe.CSRControls = function(csr, configurator, element, options) {
     this.configurator = configurator;
     this.camera = csr.camera;
     this.element = element;
-    this.viewAnimate = options.viewAnimate;
 
     this.maximumHorizontalRot = 359;
     this.minimumHorizontalRot = 0;
@@ -48,14 +47,11 @@ ripe.CSRControls = function(csr, configurator, element, options) {
 
     this._previousEvent = null;
 
-    this.viewAnimate = "crossfade";
-    this.positionAnimate = "rotate";
-
     this._setControlsOptions(options);
     this._registerHandlers();
 
-    this._referenceCameraTarget = this.csr.cameraTarget;
-    this._referenceCameraDistance = this.csr.initialDistance;
+    this.referenceCameraTarget = this.csr.cameraTarget;
+    this.referenceCameraDistance = this.csr.initialDistance;
 
     // distance variables
     this.targetDistance = this.csr.initialDistance;
@@ -63,14 +59,14 @@ ripe.CSRControls = function(csr, configurator, element, options) {
 
     // rotation variables
     const startingPosition = options.position || 0;
-    const initialXRot = this._positionToRotation(startingPosition);
+    const initialXRot = this.positionToRotation(startingPosition);
 
     this.targetRotation = new this.csr.library.Vector2(initialXRot, 0);
     this.currRotation = this.targetRotation.clone();
 
     // camera target and panning variables
     this.isPanning = false;
-    this.panTarget = this._referenceCameraTarget.clone();
+    this.panTarget = this.referenceCameraTarget.clone();
 
     // smooth rotation timers
     this.isRotating = false;
@@ -107,10 +103,6 @@ ripe.CSRControls.prototype._setControlsOptions = function(options) {
                 ? this.minDistance
                 : options.camera.minDistance;
     }
-
-    this.viewAnimate = options.viewAnimate === undefined ? this.viewAnimate : options.viewAnimate;
-    this.positionAnimate =
-        options.positionAnimate === undefined ? this.positionAnimate : options.positionAnimate;
 
     if (!options.controls) return;
 
@@ -154,58 +146,6 @@ ripe.CSRControls.prototype._setControlsOptions = function(options) {
 };
 
 /**
- * Function to perform a rotation. Assesses whether a transition
- * is necessary, and if so, calls the correct function to handle the transition depending
- * on the Configurator's settings.
- * @param {Object} options Set of parameters that guide the rotation such as:
- * - 'rotationX' - The new horizontal rotation for the camera.
- * - 'rotationY' - The new vertical rotation for the camera.
- * - 'distance' - The new camera distance.
- */
-ripe.CSRControls.prototype._applyRotations = async function(newView, newPos) {
-    const options = {
-        rotationX: this.currRotation.x,
-        rotationY: this.currRotation.y,
-        distance: this.currentDistance
-    };
-
-    // checks to see if transition is required, and delegates
-    // the transition to the controls in case of rotation, and
-    // the renderer in case of a crossfade
-    if (this.element.dataset.view !== newView) {
-        if (this.viewAnimate === "crossfade") {
-            console.log("1");
-            await this.csr.crossfade(options, "rotation");
-            // updates the internal angles of the controls after
-            // the crossfade finishes
-            // this._updateAngles(options);
-        } else if (this.viewAnimate === "rotate") {
-            console.log("2");
-            this.rotationTransition(options);
-        } else if (this.viewAnimate === "none") {
-            console.log("3");
-            this.csr.rotate(options);
-        }
-    } else if (this.element.dataset.position !== newPos) {
-        if (this.positionAnimate === "crossfade") {
-            console.log("4");
-            await this.csr.crossfade(options, "rotation");
-
-            this._updateAngles(options);
-        } else if (this.positionAnimate === "rotate") {
-            console.log("5");
-            this.rotationTransition(options);
-        } else if (this.positionAnimate === "none") {
-            console.log("6");
-            this.csr.rotate(options);
-        }
-    }
-
-    // update configurator view and position variables
-    this.configurator.updateViewPosition(newPos, newView);
-};
-
-/**
  * @ignore
  */
 ripe.CSRControls.prototype.updateOptions = async function(options) {
@@ -213,7 +153,7 @@ ripe.CSRControls.prototype.updateOptions = async function(options) {
 
     const startingPosition =
         options.position === undefined ? this.element.position : options.position;
-    this.currRotation.x = this._positionToRotation(startingPosition);
+    this.currRotation.x = this.positionToRotation(startingPosition);
     this._setControlsOptions(options);
 };
 
@@ -238,7 +178,6 @@ ripe.CSRControls.prototype._registerHandlers = function() {
 
         self._previousEvent = event;
         _element.dataset.view = _element.dataset.view || "side";
-        self.base = parseInt(_element.dataset.position) || 0;
 
         // differentiate between normal click and middle click
         // as the latter pans and not
@@ -248,9 +187,6 @@ ripe.CSRControls.prototype._registerHandlers = function() {
             self.down = true;
         }
 
-        self.referenceX = event.pageX;
-        self.referenceY = event.pageY;
-        self.percent = 0;
         _element.classList.add("drag");
     });
 
@@ -260,8 +196,6 @@ ripe.CSRControls.prototype._registerHandlers = function() {
         const _element = self.element;
         self.down = false;
         self.middleDown = false;
-        self.previous = self.percent;
-        self.percent = 0;
         _element.classList.remove("drag");
 
         event = ripe.fixEvent(event);
@@ -273,12 +207,6 @@ ripe.CSRControls.prototype._registerHandlers = function() {
     // stops reacting to mousemove events has drag movements
     area.addEventListener("mouseout", function(event) {
         this.classList.remove("drag");
-        self.previous = self.percent;
-        self.percent = 0;
-
-        const animating = self.element.classList.contains("animating");
-
-        if (animating) return;
 
         self.down = false;
     });
@@ -288,13 +216,16 @@ ripe.CSRControls.prototype._registerHandlers = function() {
     area.addEventListener("mouseenter", function(event) {
         self.down = false;
         self.middleDown = false;
-        self.previous = self.percent;
-        self.percent = 0;
     });
 
     // if a mouse move event is triggered while the mouse is
     // pressed down then updates the position of the drag element
     area.addEventListener("mousemove", function(event) {
+        const preventsDrag = self.element.classList.contains("no-drag");
+        const animating = self.element.classList.contains("animating");
+
+        if (preventsDrag || animating) return;
+
         if (self.down) {
             self._parseDrag(event);
         } else if (self.middleDown) {
@@ -440,6 +371,8 @@ ripe.CSRControls.prototype.updateRotation = function() {
 };
 
 ripe.CSRControls.prototype._parseScroll = function(event) {
+    if (!this.element.classList.contains("animating")) this.element.classList.add("animating");
+
     this.isScrolling = true;
 
     const increase = (this.maxDistance - this.minDistance) / 10;
@@ -452,11 +385,15 @@ ripe.CSRControls.prototype._parseScroll = function(event) {
 };
 
 ripe.CSRControls.prototype._parsePan = function(event) {
+    if (!this.element.classList.contains("animating")) this.element.classList.add("animating");
+
     console.log(event);
 };
 
 ripe.CSRControls.prototype._parseDrag = function(event) {
     this.isRotating = true;
+
+    if (!this.element.classList.contains("animating")) this.element.classList.add("animating");
 
     // set the new values as the normal
     // this.baseRotation.set(this.targetRotation.x, this.targetRotation.y)
@@ -504,96 +441,24 @@ ripe.CSRControls.prototype._updateAngles = function(options = {}) {
  * @param {Number} position The position that is used for the conversion.
  * @returns {Number} The normalized rotation (degrees) for the given position.
  */
-ripe.CSRControls.prototype._positionToRotation = function(position) {
+ripe.CSRControls.prototype.positionToRotation = function(position) {
     const viewFrames = 24;
 
     return (position / viewFrames) * 360;
 };
 
 /**
- * Converts a rotation to a position.
+ * * Converts a position of the element to a rotation that can be applied to
+ * the model or the camera.
  *
- * @param {Number} rotationX The rotation that is used for the conversion.
- * @returns {Number} The normalized position for the provided rotation (degrees).
+ * @param {Number} position The position that is used for the conversion.
+ * @returns {Number} The normalized rotation (degrees) for the given position.
  */
-ripe.CSRControls.prototype._rotationToPosition = function(rotationX) {
-    const viewFrames = 24;
-
-    return (this.validHorizontalAngle(parseInt(rotationX)) / 360) * viewFrames;
-};
-
-/**
- * Maps a vertical rotation to a view.
- *
- * @param {Number} rotationY The rotation to be converted into a view.
- * @returns {String} The normalized view value for the given Y rotation.
- */
-ripe.CSRControls.prototype._rotationToView = function(rotationY) {
+ripe.CSRControls.prototype.viewToRotation = function(view) {
     const verticalThreshold = this.element.dataset.verticalThreshold || 85;
-    // if the drag was vertical then alters the
-    // view if it is supported by the product
-    const view = this.element.dataset.view;
 
-    if (rotationY > verticalThreshold) {
-        return view === "top" ? "side" : "bottom";
-    }
-    if (rotationY < verticalThreshold * -1) {
-        return view === "bottom" ? "side" : "top";
-    } else return view;
-};
-
-/**
- * Called when a changeFrame event is registered, and updates the angles based on the
- * new frame.
- *
- * @param {String} frame The new frame.
- * @param {Object} options Options to be used for the change.
- */
-ripe.CSRControls.prototype.changeFrameRotation = async function(frame, options) {
-    const _frame = ripe.parseFrameKey(frame);
-
-    const animating = this.element.classList.contains("animating");
-
-    // parses the requested frame value according to the pre-defined
-    // standard (eg: side-3) and then unpacks it as view and position
-    const nextView = _frame[0];
-    const nextPosition = parseInt(_frame[1]);
-    const position = parseInt(this.element.dataset.position);
-    const view = this.element.dataset.view;
-
-    // Nothing has changed, or is performing other transition
-    if ((view === nextView && position === nextPosition) || animating) return false;
-
-    // unpacks the other options to the frame change defaulting their values
-    // in case undefined values are found
-    let duration = options.duration === undefined ? null : options.duration;
-    duration = duration || this.duration;
-    const revolutionDuration = options.revolutionDuration;
-
-    const nextHorizontalRot = this._positionToRotation(nextPosition);
-
-    if (revolutionDuration) {
-        duration = revolutionDuration;
-
-        const current = this.validHorizontalAngle(this.currRotation.x);
-        const next = this.validHorizontalAngle(nextHorizontalRot);
-        const diff = Math.abs(next - current);
-
-        duration = (diff * revolutionDuration) / 360;
-        duration = 500;
-    }
-
-    // new rotation values
-    let nextVerticalRot = 0;
-
-    if (nextView === "top") nextVerticalRot = this.maximumVerticalRot;
-    if (nextView === "bottom") nextVerticalRot = this.minimumVerticalRot;
-
-    if (view !== nextView) this.currentDistance = this._basecurrentDistance;
-
-    // sends command to configurator to rotate, so it can handle
-    // the event appropriately
-    await this._applyRotations(nextView, nextPosition);
+    if (view === "side") return 0;
+    else return view === "top" ? verticalThreshold : verticalThreshold * -1;
 };
 
 /**
@@ -602,32 +467,35 @@ ripe.CSRControls.prototype.changeFrameRotation = async function(frame, options) 
  * @param {Object} options Options used for the transition.
  */
 ripe.CSRControls.prototype.rotationTransition = async function(options) {
-    const position = parseInt(this.element.dataset.position);
-    const view = this.element.dataset.view;
-
     let finalXRotation = parseInt(options.rotationX);
-    let finalYRotation = parseInt(options.rotationY);
+    const finalYRotation = parseInt(options.rotationY);
 
-    const nextView = this._rotationToView(finalYRotation);
-    const nextPosition = this._rotationToPosition(finalXRotation);
+    const startingRotation = this.currRotation.clone();
+    const startingDistance = this.currentDistance;
 
-    const baseRotation = this.currRotation.clone();
-    const baseDistance = this.currentDistance;
+    // figures out the best final rotation to avoid going through longest path
+    const diff = finalXRotation - this.currRotation.x;
+    if (diff < -180) finalXRotation += 360;
+    if (diff > 180) finalXRotation -= 360;
+
+    this.element.classList.add("no-drag");
+    this.element.classList.add("animating");
 
     let pos = 0;
     let startTime = 0;
+    const duration = options.duration === undefined ? 500 : options.duration;
 
     const transition = time => {
         startTime = startTime === 0 ? time : startTime;
-        pos = (time - startTime) / options.duration;
+        pos = (time - startTime) / duration;
 
-        this.currRotation.x = ripe.easing[this.rotationEasing](pos, baseRotation.x, finalXRotation);
-        this.currRotation.y = ripe.easing[this.rotationEasing](pos, baseRotation.y, finalYRotation);
+        this.currRotation.x = ripe.easing.easeInOutQuad(pos, startingRotation.x, finalXRotation);
+        this.currRotation.y = ripe.easing.easeInOutQuad(pos, startingRotation.y, finalYRotation);
 
-        this.currentDistance = ripe.easing[this.rotationEasing](
+        this.currentDistance = ripe.easing.easeInOutQuad(
             pos,
-            baseDistance,
-            this._basecurrentDistance
+            startingDistance,
+            this.referenceCameraDistance
         );
 
         this.performSimpleRotation();
@@ -635,28 +503,13 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
         if (pos < 1) {
             requestAnimationFrame(transition);
         } else {
+            // update the target to match the current rotation
+            this.targetRotation.copy(this.currRotation);
             this.element.classList.remove("animating");
             this.element.classList.remove("no-drag");
         }
     };
 
-    if (view !== nextView) {
-        finalYRotation = 0;
-
-        if (nextView === "top") finalYRotation = this.maximumVerticalRot;
-        if (nextView === "bottom") finalYRotation = this.minimumVerticalRot;
-    }
-    if (position !== nextPosition) {
-        finalXRotation = this._positionToRotation(nextPosition);
-
-        // figures out the best final rotation to avoid going through longest path
-        const diff = finalXRotation - this.currRotation.x;
-        if (diff < -180) finalXRotation += 360;
-        if (diff > 180) finalXRotation -= 360;
-    }
-
-    this.element.classList.add("no-drag");
-    this.element.classList.add("animating");
     requestAnimationFrame(transition);
 };
 

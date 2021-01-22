@@ -57,6 +57,10 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.animationLoops = true;
     this._setRenderOptions(options);
 
+    this.viewAnimate = options.viewAnimate === undefined ? "crossfade" : options.viewAnimate;
+    this.positionAnimate =
+        options.positionAnimate === undefined ? "rotate" : options.positionAnimate;
+
     this.shadowBias = 0;
     this.exposure = 1.5;
     this.radius = 1;
@@ -108,6 +112,58 @@ ripe.CSR.prototype = ripe.build(ripe.Observable.prototype);
 ripe.CSR.prototype.constructor = ripe.CSR;
 
 /**
+ * @ignore
+ */
+ripe.CSR.prototype._registerHandlers = function() {
+    const self = this;
+    const area = this.element.querySelector(".area");
+
+    area.addEventListener("mousedown", function(event) {
+        const animating = self.element.classList.contains("animating");
+        if (animating) return;
+
+        self.down = true;
+    });
+
+    area.addEventListener("mouseout", function(event) {
+        self.lowlight();
+        self.down = false;
+    });
+
+    area.addEventListener("mouseup", function(event) {
+        self.down = false;
+    });
+
+    area.addEventListener("mousemove", function(event) {
+        // fixes the event, by applying a extra level of
+        // compatibility on top of the base event structure
+        event = ripe.fixEvent(event);
+
+        // in case the index that was found is the zero one this is a special
+        // position and the associated operation is the removal of the highlight
+        // also if the target is being dragged the highlight should be removed
+        if (self.down === true) {
+            self.lowlight();
+            return;
+        }
+
+        self.raycastEvent = event;
+    });
+
+    area.addEventListener("click", function(event) {
+        event = ripe.fixEvent(event);
+
+        if (!self.element.classList.contains("drag")) self.raycastEvent = event;
+    });
+
+    window.onresize = () => {
+        this.boundingBox = this.element.getBoundingClientRect();
+    };
+};
+
+// Options
+
+/**
  * Updates configurator current options with the ones provided, called from the Configurator
  * instance.
  *
@@ -130,7 +186,92 @@ ripe.CSR.prototype.updateOptions = async function(options) {
             : options.postProcessingLibrary;
     this.postProcessing =
         options.postProcessing === undefined ? this.postProcessing : options.postProcessing;
+    this.viewAnimate = options.viewAnimate === undefined ? this.viewAnimate : options.viewAnimate;
+    this.positionAnimate =
+        options.positionAnimate === undefined ? this.positionAnimate : options.positionAnimate;
 };
+
+ripe.CSR.prototype._setCameraOptions = function(options = {}) {
+    if (!options.camera) return;
+
+    const camOptions = options.camera;
+
+    this.cameraFOV = camOptions.fov === undefined ? this.cameraFOV : camOptions.fov;
+    this.cameraHeight = camOptions.height === undefined ? this.cameraHeight : camOptions.height;
+    this.cameraTarget =
+        camOptions.target === undefined
+            ? this.cameraTarget
+            : new this.library.Vector3(
+                  camOptions.target.x,
+                  camOptions.target.y,
+                  camOptions.target.z
+              );
+
+    this.initialDistance = camOptions.distance;
+};
+
+ripe.CSR.prototype._setRenderOptions = function(options = {}) {
+    if (!options.renderer) return;
+
+    const renderOptions = options.renderer;
+
+    this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
+    this.materialEasing =
+        renderOptions.materialEasing === undefined
+            ? this.materialEasing
+            : renderOptions.materialEasing;
+    this.crossfadeEasing =
+        renderOptions.crossfadeEasing === undefined
+            ? this.crossfadeEasing
+            : renderOptions.crossfadeEasing;
+    this.highlightEasing =
+        renderOptions.highlightEasing === undefined
+            ? this.highlightEasing
+            : renderOptions.highlightEasing;
+
+    this.environment =
+        renderOptions.environment === undefined ? this.environment : renderOptions.environment;
+    this.noMasks = renderOptions.noMasks === undefined ? this.noMasks : renderOptions.noMasks;
+    this.useMasks = renderOptions.useMasks === undefined ? this.useMasks : renderOptions.useMasks;
+    this.maskOpacity =
+        renderOptions.maskOpacity === undefined ? this.maskOpacity : renderOptions.maskOpacity;
+    this.maskDuration =
+        renderOptions.maskDuration === undefined ? this.maskDuration : renderOptions.maskDuration;
+
+    this.introAnimation =
+        renderOptions.introAnimation === undefined
+            ? this.introAnimation
+            : renderOptions.introAnimation;
+
+    this.playsAnimation =
+        renderOptions.playsAnimation === undefined
+            ? this.playsAnimation
+            : renderOptions.playsAnimation;
+    this.animationLoops =
+        renderOptions.animationLoops === undefined
+            ? this.animationLoops
+            : renderOptions.animationLoops;
+    this.animation =
+        renderOptions.animation === undefined ? this.animation : renderOptions.animation;
+};
+
+ripe.CSR.prototype._setPostProcessOptions = function(options = {}) {
+    if (!options.postProcess) return;
+
+    const postProcOptions = options.postProcess;
+
+    this.exposure =
+        postProcOptions.exposure === undefined ? this.exposure : postProcOptions.exposure;
+    this.shadowBias =
+        postProcOptions.shadowBias === undefined ? this.shadowBias : postProcOptions.shadowBias;
+    this.radius = postProcOptions.radius === undefined ? this.radius : postProcOptions.radius;
+
+    if (postProcOptions.bloom) this.bloomOptions = postProcOptions.bloom;
+    if (postProcOptions.antialiasing) this.aaOptions = postProcOptions.antialiasing;
+    if (postProcOptions.ambientOcclusion) this.aoOptions = postProcOptions.ambientOcclusion;
+};
+
+// Initialization
 
 /**
  * Called from the Configurator instance to initialize all aspects related to rendering,
@@ -265,6 +406,198 @@ ripe.CSR.prototype._createLoops = function() {
 };
 
 /**
+ * After the Asset Manager finished loading the glTF file, begin loading the necessary assets
+ * that pertain to rendering, such as loading the environment and the animations.
+ */
+ripe.CSR.prototype._loadAssets = async function() {
+    if (this.scene) {
+        this.mixer = new this.library.AnimationMixer(this.scene);
+    }
+
+    if (this.environment) {
+        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.environment);
+    }
+};
+
+/**
+ * Initialize shaders that the renderer will use, such as
+ * the crossfade shader for the transition.
+ *
+ * This shaders are defined in GLSL.
+ *
+ * @see https://en.wikipedia.org/wiki/OpenGL_Shading_Language
+ */
+ripe.CSR.prototype._initializeShaders = function() {
+    this.crossfadeShader = new this.library.ShaderMaterial({
+        uniforms: {
+            tDiffuse1: {
+                type: "t",
+                value: null
+            },
+            tDiffuse2: {
+                type: "t",
+                value: null
+            },
+            mixRatio: {
+                type: "f",
+                value: 0.0
+            }
+        },
+        vertexShader: [
+            "varying vec2 vUv;",
+
+            "void main() {",
+
+            "     vUv = vec2( uv.x, uv.y );",
+            "     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
+
+            "}"
+        ].join("\n"),
+        fragmentShader: [
+            "uniform float mixRatio;",
+
+            "uniform sampler2D tDiffuse1;",
+            "uniform sampler2D tDiffuse2;",
+
+            "varying vec2 vUv;",
+
+            "void main() {",
+
+            "    vec4 texel1 = texture2D( tDiffuse1, vUv );",
+            "    vec4 texel2 = texture2D( tDiffuse2, vUv );",
+
+            "    gl_FragColor = mix( texel1, texel2, mixRatio );",
+
+            "}"
+        ].join("\n")
+    });
+};
+
+/**
+ * Initializes the lights, taking into account the possible shadow bias and radius settings
+ * passed to the Configurator.
+ */
+ripe.CSR.prototype._initializeLights = function() {
+    const ambientLight = new this.library.HemisphereLight(0xffeeb1, 0x080820, 0.0);
+
+    // lights should be further away based on the camera distance, useful for dealing
+    // with scenes of varying sizes.
+    const mult = this.initialDistance;
+
+    this.keyLight = new this.library.PointLight(0xffffff, 0.5, 9 * mult);
+    this.keyLight.position.set(1 * mult, 1 * mult, 1 * mult);
+    this.keyLight.castShadow = true;
+    this.keyLight.shadow.mapSize.width = 1024;
+    this.keyLight.shadow.mapSize.height = 1024;
+    this.keyLight.shadow.radius = this.radius;
+    this.keyLight.shadow.bias = this.shadowBias;
+
+    this.fillLight = new this.library.PointLight(0xffffff, 0.2, 9 * mult);
+    this.fillLight.position.set(-1 * mult, 0.5 * mult, 1 * mult);
+    this.fillLight.castShadow = true;
+    this.fillLight.shadow.mapSize.width = 1024;
+    this.fillLight.shadow.mapSize.height = 1024;
+    this.fillLight.shadow.radius = this.radius;
+    this.fillLight.shadow.bias = this.shadowBias;
+
+    this.rimLight = new this.library.PointLight(0xffffff, 0.7, 9 * mult);
+    this.rimLight.position.set(-0.5 * mult, 0.75 * mult, -1.5 * mult);
+    this.rimLight.castShadow = true;
+    this.rimLight.shadow.mapSize.width = 1024;
+    this.rimLight.shadow.mapSize.height = 1024;
+    this.rimLight.shadow.radius = this.radius;
+    this.rimLight.shadow.bias = this.shadowBias;
+
+    this.scene.add(ambientLight);
+    this.scene.add(this.keyLight);
+    this.scene.add(this.fillLight);
+    this.scene.add(this.rimLight);
+};
+
+/**
+ * Initializes both the WebGL Renderer as well as the Effect Composer if it uses post-processing.
+ */
+ripe.CSR.prototype._initializeRenderer = function() {
+    // creates the renderer using the "default" WebGL approach
+    // notice that the shadow map is enabled
+    this.renderer = new this.library.WebGLRenderer({
+        logarithmicDepthBuffer: true,
+        antialias: false,
+        stencil: false,
+        depth: true,
+        alpha: true,
+        physicallyCorrectLights: true
+    });
+
+    const width = this.element.getBoundingClientRect().width;
+    const height = this.element.getBoundingClientRect().height;
+
+    this.renderer.setSize(width, height);
+
+    // sets renderer params
+    this.renderer.toneMappingExposure = this.exposure;
+    this.renderer.toneMapping = this.library.ACESFilmicToneMapping;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = this.library.PCFSoftShadowMap;
+    this.renderer.outputEncoding = this.library.sRGBEncoding;
+
+    const area = this.element.querySelector(".area");
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    this.renderer.setPixelRatio(devicePixelRatio);
+    this.renderer.setClearColor(0xffffff);
+
+    area.appendChild(this.renderer.domElement);
+
+    const renderTargetParams = {
+        minFilter: this.library.LinearFilter,
+        magFilter: this.library.LinearFilter,
+        format: this.library.RGBAFormat
+    };
+
+    this.previousSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
+    this.nextSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
+
+    this.composer = new this.postProcessLib.EffectComposer(this.renderer);
+    this.composer.addPass(new this.postProcessLib.RenderPass(this.scene, this.camera));
+};
+
+/**
+ * Creates the default camera as well as the camera that will be responsible
+ * for handling the crossfading.
+ */
+ripe.CSR.prototype._initializeCameras = function() {
+    const width = this.element.getBoundingClientRect().width;
+    const height = this.element.getBoundingClientRect().height;
+
+    this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 1000);
+    this.camera.position.set(0, this.cameraHeight, this.initialDistance);
+
+    if (this.element.dataset.view === "side") {
+        this._currentVerticalRot = 0;
+        this.verticalRot = 0;
+    } else if (this.element.dataset.view === "top") {
+        this._currentVerticalRot = Math.PI / 2;
+        this.verticalRot = Math.PI / 2;
+    }
+
+    this.camera.lookAt(this.cameraTarget);
+
+    // Values of far and near camera are so high and so narrow
+    // to place the quad outside of the scene, and only render
+    // the quad
+    this.crossfadeCamera = new this.library.OrthographicCamera(
+        -width / 2,
+        width / 2,
+        height / 2,
+        -height / 2,
+        -1000,
+        -998
+    );
+
+    this.camera.animations = [];
+};
+
+/**
  * Function to dispose all resources created by the renderer,
  * including all the elements belonging to the scene.
  */
@@ -280,9 +613,15 @@ ripe.CSR.prototype.disposeResources = async function() {
     this.renderer = null;
     this.composer = null;
 
-    if (this.keyLight.shadow && this.keyLight.shadow.map) this.keyLight.shadow.map.dispose();
-    if (this.fillLight.shadow && this.fillLight.shadow.map) this.fillLight.shadow.map.dispose();
-    if (this.rimLight.shadow && this.rimLight.shadow.map) this.rimLight.shadow.map.dispose();
+    if (this.keyLight && this.keyLight.shadow && this.keyLight.shadow.map) {
+        this.keyLight.shadow.map.dispose();
+    }
+    if (this.fillLight && this.fillLight.shadow && this.fillLight.shadow.map) {
+        this.fillLight.shadow.map.dispose();
+    }
+    if (this.rimLight && this.rimLight.shadow && this.rimLight.shadow.map) {
+        this.rimLight.shadow.map.dispose();
+    }
 
     this.previousSceneFBO.texture.dispose();
     this.previousSceneFBO.dispose();
@@ -291,6 +630,98 @@ ripe.CSR.prototype.disposeResources = async function() {
 
     await this.assetManager.disposeScene(this.scene);
 };
+
+// Postprocessing
+
+/**
+ * Creates the render passes and adds them to the effect composer.
+ */
+ripe.CSR.prototype._setupPostProcessing = async function() {
+    await this._setupBloomPass();
+    await this._setupAAPass();
+    await this._setupAOPass();
+};
+
+/**
+ * @ignore
+ */
+ripe.CSR.prototype._setupBloomPass = async function() {
+    const blendFunction = this.postProcessLib.BlendFunction.SCREEN;
+    const kernelSize = this.postProcessLib.KernelSize.MEDIUM;
+    const luminanceSmoothing = 0.075;
+    const bloomHeight = 480;
+
+    const bloomOptions = {
+        blendFunction: blendFunction,
+        kernelSize: kernelSize,
+        luminanceSmoothing: luminanceSmoothing,
+        height: bloomHeight
+    };
+
+    const bloomEffect = new this.postProcessLib.BloomEffect(bloomOptions);
+
+    bloomEffect.luminanceMaterial.threshold =
+        this.bloomOptions.threshold === undefined ? 0.9 : this.bloomOptions.threshold;
+    bloomEffect.intensity =
+        this.bloomOptions.intensity === undefined ? 0.5 : this.bloomOptions.intensity;
+    bloomEffect.blendMode.opacity.value =
+        this.bloomOptions.opacity === undefined ? 0.7 : this.bloomOptions.opacity;
+
+    this.composer.addPass(new this.postProcessLib.EffectPass(this.camera, bloomEffect));
+
+    if (this.debug) this.gui.setupBloom(bloomEffect);
+};
+
+/**
+ * @ignore
+ */
+ripe.CSR.prototype._setupAAPass = async function() {
+    const loadingManager = new this.library.LoadingManager();
+    const smaaImageLoader = new this.postProcessLib.SMAAImageLoader(loadingManager);
+
+    const self = this;
+
+    smaaImageLoader.load(([search, area]) => {
+        const aaEffect = new this.postProcessLib.SMAAEffect(
+            search,
+            area,
+            self.postProcessLib.SMAAPreset.HIGH,
+            self.postProcessLib.EdgeDetectionMode.COLOR
+        );
+
+        // the following variables are used in
+        // the debug GUI (for the CSR)
+        const edgesTextureEffect = new this.postProcessLib.TextureEffect({
+            blendFunction: self.postProcessLib.BlendFunction.SKIP,
+            texture: aaEffect.renderTargetEdges.texture
+        });
+
+        const weightsTextureEffect = new this.postProcessLib.TextureEffect({
+            blendFunction: self.postProcessLib.BlendFunction.SKIP,
+            texture: aaEffect.renderTargetWeights.texture
+        });
+
+        const effectPass = new this.postProcessLib.EffectPass(
+            self.camera,
+            aaEffect,
+            edgesTextureEffect,
+            weightsTextureEffect
+        );
+
+        self.composer.addPass(effectPass);
+
+        const context = self.renderer.getContext();
+        const samples = Math.max(4, context.getParameter(context.MAX_SAMPLES));
+        self.composer.multisampling = samples;
+
+        if (self.debug) self.gui.setupAA(self.postProcessLib, aaEffect);
+    });
+};
+
+/**
+ * @ignore
+ */
+ripe.CSR.prototype._setupAOPass = async function() {};
 
 ripe.CSR.prototype.updateWireframe = function(value) {
     Object.values((this.assetManager && this.assetManager.meshes) || {}).forEach(mesh => {
@@ -307,6 +738,7 @@ ripe.CSR.prototype.updateWireframe = function(value) {
 
     this._wireframe = value;
 };
+
 /**
  * Responsible for updating the initials meshes in the scene.
  *
@@ -333,6 +765,8 @@ ripe.CSR.prototype.updateSize = function() {
     if (this.renderer) this.renderer.setSize(this.element.clientWidth, this.element.clientHeight);
     if (this.composer) this.composer.setSize(this.element.clientWidth, this.element.clientHeight);
 };
+
+// Transitions
 
 /**
  * The highlight operation for a part.
@@ -593,419 +1027,110 @@ ripe.CSR.prototype.rotate = function(options) {
 
     this.camera.lookAt(this.cameraTarget);
     this.needsRenderUpdate = true;
-};
 
-ripe.CSR.prototype._setCameraOptions = function(options = {}) {
-    if (!options.camera) return;
+    // update position and view information
+    const newView = this._rotationToView(options.rotationY);
+    const newPosition = this._rotationToPosition(options.rotationX);
 
-    const camOptions = options.camera;
-
-    this.cameraFOV = camOptions.fov === undefined ? this.cameraFOV : camOptions.fov;
-    this.cameraHeight = camOptions.height === undefined ? this.cameraHeight : camOptions.height;
-    this.cameraTarget =
-        camOptions.target === undefined
-            ? this.cameraTarget
-            : new this.library.Vector3(
-                  camOptions.target.x,
-                  camOptions.target.y,
-                  camOptions.target.z
-              );
-
-    this.initialDistance = camOptions.distance;
-};
-
-ripe.CSR.prototype._setRenderOptions = function(options = {}) {
-    if (!options.renderer) return;
-
-    const renderOptions = options.renderer;
-
-    this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
-    this.materialEasing =
-        renderOptions.materialEasing === undefined
-            ? this.materialEasing
-            : renderOptions.materialEasing;
-    this.crossfadeEasing =
-        renderOptions.crossfadeEasing === undefined
-            ? this.crossfadeEasing
-            : renderOptions.crossfadeEasing;
-    this.highlightEasing =
-        renderOptions.highlightEasing === undefined
-            ? this.highlightEasing
-            : renderOptions.highlightEasing;
-
-    this.environment =
-        renderOptions.environment === undefined ? this.environment : renderOptions.environment;
-    this.noMasks = renderOptions.noMasks === undefined ? this.noMasks : renderOptions.noMasks;
-    this.useMasks = renderOptions.useMasks === undefined ? this.useMasks : renderOptions.useMasks;
-    this.maskOpacity =
-        renderOptions.maskOpacity === undefined ? this.maskOpacity : renderOptions.maskOpacity;
-    this.maskDuration =
-        renderOptions.maskDuration === undefined ? this.maskDuration : renderOptions.maskDuration;
-
-    this.introAnimation =
-        renderOptions.introAnimation === undefined
-            ? this.introAnimation
-            : renderOptions.introAnimation;
-
-    this.playsAnimation =
-        renderOptions.playsAnimation === undefined
-            ? this.playsAnimation
-            : renderOptions.playsAnimation;
-    this.animationLoops =
-        renderOptions.animationLoops === undefined
-            ? this.animationLoops
-            : renderOptions.animationLoops;
-    this.animation =
-        renderOptions.animation === undefined ? this.animation : renderOptions.animation;
-};
-
-ripe.CSR.prototype._setPostProcessOptions = function(options = {}) {
-    if (!options.postProcess) return;
-
-    const postProcOptions = options.postProcess;
-
-    this.exposure =
-        postProcOptions.exposure === undefined ? this.exposure : postProcOptions.exposure;
-    this.shadowBias =
-        postProcOptions.shadowBias === undefined ? this.shadowBias : postProcOptions.shadowBias;
-    this.radius = postProcOptions.radius === undefined ? this.radius : postProcOptions.radius;
-
-    if (postProcOptions.bloom) this.bloomOptions = postProcOptions.bloom;
-    if (postProcOptions.antialiasing) this.aaOptions = postProcOptions.antialiasing;
-    if (postProcOptions.ambientOcclusion) this.aoOptions = postProcOptions.ambientOcclusion;
+    // update configurator view and position variables
+    this.configurator.updateViewPosition(newView, newPosition);
 };
 
 /**
- * @ignore
+ * Function to perform a rotation. Assesses whether a transition
+ * is necessary, and if so, calls the correct function to handle the transition depending
+ * on the Configurator's settings.
+ * @param {Object} options Set of parameters that guide the rotation such as:
+ * - 'rotationX' - The new horizontal rotation for the camera.
+ * - 'rotationY' - The new vertical rotation for the camera.
+ * - 'distance' - The new camera distance.
  */
-ripe.CSR.prototype._registerHandlers = function() {
-    const self = this;
-    const area = this.element.querySelector(".area");
+ripe.CSR.prototype.changeFrameRotation = async function(frame) {
+    const _frame = ripe.parseFrameKey(frame);
 
-    area.addEventListener("mousedown", function(event) {
-        const animating = self.element.classList.contains("animating");
-        if (animating) return;
+    // parses the requested frame value according to the pre-defined
+    // standard (eg: side-3) and then unpacks it as view and position
+    const nextView = _frame[0];
+    const nextPosition = parseInt(_frame[1]);
+    const position = parseInt(this.element.dataset.position);
+    const view = this.element.dataset.view;
 
-        self.down = true;
-    });
+    // nothing has changed, or is performing other transition
+    if (view === nextView && position === nextPosition) return false;
 
-    area.addEventListener("mouseout", function(event) {
-        self.lowlight();
-        self.down = false;
-    });
+    const nextRotationX = this.controls.positionToRotation(nextPosition);
+    const nextRotationY = this.controls.viewToRotation(nextView);
+    const options = {
+        rotationX: nextRotationX,
+        rotationY: nextRotationY
+    };
 
-    area.addEventListener("mouseup", function(event) {
-        self.down = false;
-    });
-
-    area.addEventListener("mousemove", function(event) {
-        // fixes the event, by applying a extra level of
-        // compatibility on top of the base event structure
-        event = ripe.fixEvent(event);
-
-        // in case the index that was found is the zero one this is a special
-        // position and the associated operation is the removal of the highlight
-        // also if the target is being dragged the highlight should be removed
-        if (self.down === true) {
-            self.lowlight();
-            return;
+    // checks to see if transition is required, and delegates
+    // the transition to the controls in case of rotation, and
+    // the renderer in case of a crossfade
+    if (this.element.dataset.view !== nextView) {
+        if (this.viewAnimate === "crossfade") {
+            console.log("1");
+            await this.crossfade(options, "rotation");
+            // updates the internal angles of the controls after
+            // the crossfade finishes
+            // this._updateAngles(options);
+        } else if (this.viewAnimate === "rotate") {
+            console.log("2");
+            this.controls.rotationTransition(options);
+        } else if (this.viewAnimate === "none") {
+            console.log("3");
+            this.rotate(options);
         }
+    } else if (this.element.dataset.position !== nextPosition) {
+        if (this.positionAnimate === "crossfade") {
+            console.log("4");
+            await this.crossfade(options, "rotation");
 
-        self.raycastEvent = event;
-    });
-
-    area.addEventListener("click", function(event) {
-        event = ripe.fixEvent(event);
-
-        if (!self.element.classList.contains("drag")) self.raycastEvent = event;
-    });
-
-    window.onresize = () => {
-        this.boundingBox = this.element.getBoundingClientRect();
-    };
-};
-
-/**
- * After the Asset Manager finished loading the glTF file, begin loading the necessary assets
- * that pertain to rendering, such as loading the environment and the animations.
- */
-ripe.CSR.prototype._loadAssets = async function() {
-    if (this.scene) {
-        this.mixer = new this.library.AnimationMixer(this.scene);
-    }
-
-    if (this.environment) {
-        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.environment);
+            this._updateAngles(options);
+        } else if (this.positionAnimate === "rotate") {
+            console.log("5");
+            this.controls.rotationTransition(options);
+        } else if (this.positionAnimate === "none") {
+            console.log("6");
+            this.csr.rotate(options);
+        }
     }
 };
 
 /**
- * Initialize shaders that the renderer will use, such as
- * the crossfade shader for the transition.
+ * Converts a rotation to a position.
  *
- * This shaders are defined in GLSL.
+ * @param {Number} rotationX The rotation that is used for the conversion.
+ * @returns {Number} The normalized position for the provided rotation (degrees).
+ */
+ripe.CSR.prototype._rotationToPosition = function(rotationX) {
+    const viewFrames = 24;
+
+    return (this.controls.validHorizontalAngle(parseInt(rotationX)) / 360) * viewFrames;
+};
+
+/**
+ * Maps a vertical rotation to a view.
  *
- * @see https://en.wikipedia.org/wiki/OpenGL_Shading_Language
+ * @param {Number} rotationY The rotation to be converted into a view.
+ * @returns {String} The normalized view value for the given Y rotation.
  */
-ripe.CSR.prototype._initializeShaders = function() {
-    this.crossfadeShader = new this.library.ShaderMaterial({
-        uniforms: {
-            tDiffuse1: {
-                type: "t",
-                value: null
-            },
-            tDiffuse2: {
-                type: "t",
-                value: null
-            },
-            mixRatio: {
-                type: "f",
-                value: 0.0
-            }
-        },
-        vertexShader: [
-            "varying vec2 vUv;",
+ripe.CSR.prototype._rotationToView = function(rotationY) {
+    const verticalThreshold = this.element.dataset.verticalThreshold || 85;
+    // if the drag was vertical then alters the
+    // view if it is supported by the product
+    const view = this.element.dataset.view;
 
-            "void main() {",
-
-            "     vUv = vec2( uv.x, uv.y );",
-            "     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );",
-
-            "}"
-        ].join("\n"),
-        fragmentShader: [
-            "uniform float mixRatio;",
-
-            "uniform sampler2D tDiffuse1;",
-            "uniform sampler2D tDiffuse2;",
-
-            "varying vec2 vUv;",
-
-            "void main() {",
-
-            "    vec4 texel1 = texture2D( tDiffuse1, vUv );",
-            "    vec4 texel2 = texture2D( tDiffuse2, vUv );",
-
-            "    gl_FragColor = mix( texel1, texel2, mixRatio );",
-
-            "}"
-        ].join("\n")
-    });
-};
-
-/**
- * Initializes the lights, taking into account the possible shadow bias and radius settings
- * passed to the Configurator.
- */
-ripe.CSR.prototype._initializeLights = function() {
-    const ambientLight = new this.library.HemisphereLight(0xffeeb1, 0x080820, 0.0);
-
-    // lights should be further away based on the camera distance, useful for dealing
-    // with scenes of varying sizes.
-    const mult = this.initialDistance;
-
-    this.keyLight = new this.library.PointLight(0xffffff, 0.5, 9 * mult);
-    this.keyLight.position.set(1 * mult, 1 * mult, 1 * mult);
-    this.keyLight.castShadow = true;
-    this.keyLight.shadow.mapSize.width = 1024;
-    this.keyLight.shadow.mapSize.height = 1024;
-    this.keyLight.shadow.radius = this.radius;
-    this.keyLight.shadow.bias = this.shadowBias;
-
-    this.fillLight = new this.library.PointLight(0xffffff, 0.2, 9 * mult);
-    this.fillLight.position.set(-1 * mult, 0.5 * mult, 1 * mult);
-    this.fillLight.castShadow = true;
-    this.fillLight.shadow.mapSize.width = 1024;
-    this.fillLight.shadow.mapSize.height = 1024;
-    this.fillLight.shadow.radius = this.radius;
-    this.fillLight.shadow.bias = this.shadowBias;
-
-    this.rimLight = new this.library.PointLight(0xffffff, 0.7, 9 * mult);
-    this.rimLight.position.set(-0.5 * mult, 0.75 * mult, -1.5 * mult);
-    this.rimLight.castShadow = true;
-    this.rimLight.shadow.mapSize.width = 1024;
-    this.rimLight.shadow.mapSize.height = 1024;
-    this.rimLight.shadow.radius = this.radius;
-    this.rimLight.shadow.bias = this.shadowBias;
-
-    this.scene.add(ambientLight);
-    this.scene.add(this.keyLight);
-    this.scene.add(this.fillLight);
-    this.scene.add(this.rimLight);
-};
-
-/**
- * Initializes both the WebGL Renderer as well as the Effect Composer if it uses post-processing.
- */
-ripe.CSR.prototype._initializeRenderer = function() {
-    // creates the renderer using the "default" WebGL approach
-    // notice that the shadow map is enabled
-    this.renderer = new this.library.WebGLRenderer({
-        logarithmicDepthBuffer: true,
-        antialias: false,
-        stencil: false,
-        depth: true,
-        alpha: true,
-        physicallyCorrectLights: true
-    });
-
-    const width = this.element.getBoundingClientRect().width;
-    const height = this.element.getBoundingClientRect().height;
-
-    this.renderer.setSize(width, height);
-
-    // sets renderer params
-    this.renderer.toneMappingExposure = this.exposure;
-    this.renderer.toneMapping = this.library.ACESFilmicToneMapping;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = this.library.PCFSoftShadowMap;
-    this.renderer.outputEncoding = this.library.sRGBEncoding;
-
-    const area = this.element.querySelector(".area");
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(devicePixelRatio);
-    this.renderer.setClearColor(0xffffff);
-
-    area.appendChild(this.renderer.domElement);
-
-    const renderTargetParams = {
-        minFilter: this.library.LinearFilter,
-        magFilter: this.library.LinearFilter,
-        format: this.library.RGBAFormat
-    };
-
-    this.previousSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
-    this.nextSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
-
-    this.composer = new this.postProcessLib.EffectComposer(this.renderer);
-    this.composer.addPass(new this.postProcessLib.RenderPass(this.scene, this.camera));
-};
-
-/**
- * Creates the render passes and adds them to the effect composer.
- */
-ripe.CSR.prototype._setupPostProcessing = async function() {
-    await this._setupBloomPass();
-    await this._setupAAPass();
-    await this._setupAOPass();
-};
-
-/**
- * @ignore
- */
-ripe.CSR.prototype._setupBloomPass = async function() {
-    const blendFunction = this.postProcessLib.BlendFunction.SCREEN;
-    const kernelSize = this.postProcessLib.KernelSize.MEDIUM;
-    const luminanceSmoothing = 0.075;
-    const bloomHeight = 480;
-
-    const bloomOptions = {
-        blendFunction: blendFunction,
-        kernelSize: kernelSize,
-        luminanceSmoothing: luminanceSmoothing,
-        height: bloomHeight
-    };
-
-    const bloomEffect = new this.postProcessLib.BloomEffect(bloomOptions);
-
-    bloomEffect.luminanceMaterial.threshold =
-        this.bloomOptions.threshold === undefined ? 0.9 : this.bloomOptions.threshold;
-    bloomEffect.intensity =
-        this.bloomOptions.intensity === undefined ? 0.5 : this.bloomOptions.intensity;
-    bloomEffect.blendMode.opacity.value =
-        this.bloomOptions.opacity === undefined ? 0.7 : this.bloomOptions.opacity;
-
-    this.composer.addPass(new this.postProcessLib.EffectPass(this.camera, bloomEffect));
-
-    if (this.debug) this.gui.setupBloom(bloomEffect);
-};
-
-/**
- * @ignore
- */
-ripe.CSR.prototype._setupAAPass = async function() {
-    const loadingManager = new this.library.LoadingManager();
-    const smaaImageLoader = new this.postProcessLib.SMAAImageLoader(loadingManager);
-
-    const self = this;
-
-    smaaImageLoader.load(([search, area]) => {
-        const aaEffect = new this.postProcessLib.SMAAEffect(
-            search,
-            area,
-            self.postProcessLib.SMAAPreset.HIGH,
-            self.postProcessLib.EdgeDetectionMode.COLOR
-        );
-
-        // the following variables are used in
-        // the debug GUI (for the CSR)
-        const edgesTextureEffect = new this.postProcessLib.TextureEffect({
-            blendFunction: self.postProcessLib.BlendFunction.SKIP,
-            texture: aaEffect.renderTargetEdges.texture
-        });
-
-        const weightsTextureEffect = new this.postProcessLib.TextureEffect({
-            blendFunction: self.postProcessLib.BlendFunction.SKIP,
-            texture: aaEffect.renderTargetWeights.texture
-        });
-
-        const effectPass = new this.postProcessLib.EffectPass(
-            self.camera,
-            aaEffect,
-            edgesTextureEffect,
-            weightsTextureEffect
-        );
-
-        self.composer.addPass(effectPass);
-
-        const context = self.renderer.getContext();
-        const samples = Math.max(4, context.getParameter(context.MAX_SAMPLES));
-        self.composer.multisampling = samples;
-
-        if (self.debug) self.gui.setupAA(self.postProcessLib, aaEffect);
-    });
-};
-
-/**
- * @ignore
- */
-ripe.CSR.prototype._setupAOPass = async function() {};
-
-/**
- * Creates the default camera as well as the camera that will be responsible
- * for handling the crossfading.
- */
-ripe.CSR.prototype._initializeCameras = function() {
-    const width = this.element.getBoundingClientRect().width;
-    const height = this.element.getBoundingClientRect().height;
-
-    this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 1000);
-    this.camera.position.set(0, this.cameraHeight, this.initialDistance);
-
-    if (this.element.dataset.view === "side") {
-        this._currentVerticalRot = 0;
-        this.verticalRot = 0;
-    } else if (this.element.dataset.view === "top") {
-        this._currentVerticalRot = Math.PI / 2;
-        this.verticalRot = Math.PI / 2;
+    if (rotationY > verticalThreshold) {
+        return view === "top" ? "side" : "bottom";
     }
-
-    this.camera.lookAt(this.cameraTarget);
-
-    // Values of far and near camera are so high and so narrow
-    // to place the quad outside of the scene, and only render
-    // the quad
-    this.crossfadeCamera = new this.library.OrthographicCamera(
-        -width / 2,
-        width / 2,
-        height / 2,
-        -height / 2,
-        -1000,
-        -998
-    );
-
-    this.camera.animations = [];
+    if (rotationY < verticalThreshold * -1) {
+        return view === "bottom" ? "side" : "top";
+    } else return view;
 };
+
+// Animations
 
 /**
  * Retrieves a mesh animation by it's name.
@@ -1195,10 +1320,6 @@ ripe.CSR.prototype._convertRaycast = function(coordinates) {
     }
 
     return { x: newX, y: newY };
-};
-
-ripe.CSR.prototype.changeFrameRotation = function(frame, options) {
-    this.controls.changeFrameRotation(frame, options);
 };
 
 Object.defineProperty(ripe.CSR.prototype, "wireframe", {
