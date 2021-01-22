@@ -403,12 +403,11 @@ window.onload = function() {
                 },
 
                 controls: {
-                    // 'mouseDrift' defaults to true, unless specified to be false
-                    // allows drifting when dragging stops
-                    driftDuration: 200,
-
+                    smoothControls: true,
                     // if we're allowed to zoom in as part of the orbital controls
                     canZoom: true,
+                    canPan: true,
+                    canPivot: true,
 
                     // 'lockRotation' can be 'horizontal', 'vertical', or be left
                     // empty for no axis lock on rotations

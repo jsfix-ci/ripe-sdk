@@ -17,20 +17,20 @@ if (
  * @classdesc Class that handles the load and dispose operations of all assets,
  * including meshes, textures, animations and materials.
  *
- * @param {ConfiguratorCSR} configurator The base configurator.
+ * @param {CSR} csr The base CSR instance.
  * @param {Object} owner The owner (customizer instance) for
- * this configurator.
+ * the configurator.
  * @param {Object} options The options to be used to configure the
  * asset manager.
  */
-ripe.CSRAssetManager = function(configurator, owner, options) {
+ripe.CSRAssetManager = function(csr, owner, options) {
     // there must be a model configuration, otherwise an error will occur
     // in case there's not throws a series of exceptions
     if (!options.assets) throw new Error("No assets definition available");
     if (!options.assets.config) throw new Error("No valid configuration provided");
 
     this.owner = owner;
-    this.configurator = configurator;
+    this.csr = csr;
     this.assetsPath = options.assets.path;
 
     this.library = options.library;
@@ -108,7 +108,7 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
         this._storePartsColors();
     }
 
-    this.configurator.initializeLoading();
+    this.csr.initialize();
 };
 
 /**

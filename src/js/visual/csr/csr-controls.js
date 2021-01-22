@@ -16,44 +16,72 @@ if (
  * @class
  * @classdesc Class that handles controlling the scene based on input.
  *
- * @param {ConfiguratorCSR} configurator The base configurator.
+ * @param {CSR} csr The base CSR instance.
+ * @param {ConfiguratorCSR} configurator The configurator instance.
  * @param {Object} element The HTML element that contains the configurator.
  * @param {Object} options The options to be used to configure the controls.
  */
-ripe.CSRControls = function(configurator, element, options) {
+ripe.CSRControls = function(csr, configurator, element, options) {
+    this.csr = csr;
     this.configurator = configurator;
+    this.camera = csr.camera;
     this.element = element;
+    this.viewAnimate = options.viewAnimate;
 
-    this.maximumHorizontalRot = 180;
-    this.minimumHorizontalRot = -180;
+    this.maximumHorizontalRot = 359;
+    this.minimumHorizontalRot = 0;
     this.maximumVerticalRot = 89;
     this.minimumVerticalRot = 0;
 
-    const startingPosition = options.position || 0;
-    this._baseHorizontalRot = this._positionToRotation(startingPosition);
-    this.currentHorizontalRot = this._baseHorizontalRot;
-
-    this._baseVerticalRot = 0;
-    this.currentVerticalRot = this._baseVerticalRot;
-
     this.rotationEasing = "easeInOutQuad";
 
-    this.cameraDistance = 100;
     this.maxDistance = 1000;
     this.minDistance = 0;
-    this._baseCameraDistance = 100;
 
     this.lockRotation = "";
 
-    this.mouseDrift = true;
-    this.canDrift = false;
-    this.driftDuration = 200;
+    this.smoothControls = true;
 
     this.canZoom = true;
+    this.canPan = true;
+    this.canPivot = true;
+
     this._previousEvent = null;
+
+    this.viewAnimate = "crossfade";
+    this.positionAnimate = "rotate";
 
     this._setControlsOptions(options);
     this._registerHandlers();
+
+    this._referenceCameraTarget = this.csr.cameraTarget;
+    this._referenceCameraDistance = this.csr.initialDistance;
+
+    // distance variables
+    this.targetDistance = this.csr.initialDistance;
+    this.currentDistance = this.csr.initialDistance;
+
+    // rotation variables
+    const startingPosition = options.position || 0;
+    const initialXRot = this._positionToRotation(startingPosition);
+
+    this.targetRotation = new this.csr.library.Vector2(initialXRot, 0);
+    this.currRotation = this.targetRotation.clone();
+
+    // camera target and panning variables
+    this.isPanning = false;
+    this.panTarget = this._referenceCameraTarget.clone();
+
+    // smooth rotation timers
+    this.isRotating = false;
+    this.startingRotTime = -1;
+
+    // smooth scroll timers, scroll time is constant
+    this.isScrolling = false;
+
+    this.maxDriftTime = 0.6;
+
+    this.createLoop();
 };
 
 ripe.CSRControls.prototype = ripe.build(ripe.Observable.prototype);
@@ -67,9 +95,9 @@ ripe.CSRControls.prototype.constructor = ripe.CSRControls;
  */
 ripe.CSRControls.prototype._setControlsOptions = function(options) {
     if (options.camera) {
-        this.cameraDistance =
-            options.camera.distance === undefined ? this.cameraDistance : options.camera.distance;
-        this._baseCameraDistance = this.cameraDistance;
+        this.currentDistance =
+            options.camera.distance === undefined ? this.currentDistance : options.camera.distance;
+        this.baseDistance = this.currentDistance;
         this.maxDistance =
             options.camera.maxDistance === undefined
                 ? this.maxDistance
@@ -79,6 +107,10 @@ ripe.CSRControls.prototype._setControlsOptions = function(options) {
                 ? this.minDistance
                 : options.camera.minDistance;
     }
+
+    this.viewAnimate = options.viewAnimate === undefined ? this.viewAnimate : options.viewAnimate;
+    this.positionAnimate =
+        options.positionAnimate === undefined ? this.positionAnimate : options.positionAnimate;
 
     if (!options.controls) return;
 
@@ -112,14 +144,65 @@ ripe.CSRControls.prototype._setControlsOptions = function(options) {
         controlOptions.lockRotation === undefined ? this.lockRotation : controlOptions.lockRotation;
 
     this.canZoom = controlOptions.canZoom === undefined ? this.canZoom : controlOptions.canZoom;
+    this.canPan = controlOptions.canPan === undefined ? this.canPan : controlOptions.canPan;
+    this.canPivot = controlOptions.canPivot === undefined ? this.canPivot : controlOptions.canPivot;
 
-    this.mouseDrift =
-        controlOptions.mouseDrift === undefined ? this.mouseDrift : controlOptions.mouseDrift;
+    this.smoothControls =
+        controlOptions.smoothControls === undefined
+            ? this.smoothControls
+            : controlOptions.smoothControls;
+};
 
-    this.driftDuration =
-        controlOptions.driftDuration === undefined
-            ? this.driftDuration
-            : controlOptions.driftDuration;
+/**
+ * Function to perform a rotation. Assesses whether a transition
+ * is necessary, and if so, calls the correct function to handle the transition depending
+ * on the Configurator's settings.
+ * @param {Object} options Set of parameters that guide the rotation such as:
+ * - 'rotationX' - The new horizontal rotation for the camera.
+ * - 'rotationY' - The new vertical rotation for the camera.
+ * - 'distance' - The new camera distance.
+ */
+ripe.CSRControls.prototype._applyRotations = async function(newView, newPos) {
+    const options = {
+        rotationX: this.currRotation.x,
+        rotationY: this.currRotation.y,
+        distance: this.currentDistance
+    };
+
+    // checks to see if transition is required, and delegates
+    // the transition to the controls in case of rotation, and
+    // the renderer in case of a crossfade
+    if (this.element.dataset.view !== newView) {
+        if (this.viewAnimate === "crossfade") {
+            console.log("1");
+            await this.csr.crossfade(options, "rotation");
+            // updates the internal angles of the controls after
+            // the crossfade finishes
+            // this._updateAngles(options);
+        } else if (this.viewAnimate === "rotate") {
+            console.log("2");
+            this.rotationTransition(options);
+        } else if (this.viewAnimate === "none") {
+            console.log("3");
+            this.csr.rotate(options);
+        }
+    } else if (this.element.dataset.position !== newPos) {
+        if (this.positionAnimate === "crossfade") {
+            console.log("4");
+            await this.csr.crossfade(options, "rotation");
+
+            this._updateAngles(options);
+        } else if (this.positionAnimate === "rotate") {
+            console.log("5");
+            this.rotationTransition(options);
+        } else if (this.positionAnimate === "none") {
+            console.log("6");
+            this.csr.rotate(options);
+        }
+    }
+
+    // update configurator view and position variables
+    this.configurator.updateViewPosition(newPos, newView);
 };
 
 /**
@@ -130,7 +213,7 @@ ripe.CSRControls.prototype.updateOptions = async function(options) {
 
     const startingPosition =
         options.position === undefined ? this.element.position : options.position;
-    this._baseHorizontalRot = this._positionToRotation(startingPosition);
+    this.currRotation.x = this._positionToRotation(startingPosition);
     this._setControlsOptions(options);
 };
 
@@ -153,9 +236,18 @@ ripe.CSRControls.prototype._registerHandlers = function() {
 
         if (animating) return;
 
+        self._previousEvent = event;
         _element.dataset.view = _element.dataset.view || "side";
         self.base = parseInt(_element.dataset.position) || 0;
-        self.down = true;
+
+        // differentiate between normal click and middle click
+        // as the latter pans and not
+        if (event.which === 2 && self.canPan) {
+            self.middleDown = true;
+        } else {
+            self.down = true;
+        }
+
         self.referenceX = event.pageX;
         self.referenceY = event.pageY;
         self.percent = 0;
@@ -167,6 +259,7 @@ ripe.CSRControls.prototype._registerHandlers = function() {
     area.addEventListener("mouseup", function(event) {
         const _element = self.element;
         self.down = false;
+        self.middleDown = false;
         self.previous = self.percent;
         self.percent = 0;
         _element.classList.remove("drag");
@@ -174,23 +267,18 @@ ripe.CSRControls.prototype._registerHandlers = function() {
         event = ripe.fixEvent(event);
 
         self._previousEvent = undefined;
-        self._updateAngles();
     });
 
     // listens for mouse leave events and if it occurs then
     // stops reacting to mousemove events has drag movements
     area.addEventListener("mouseout", function(event) {
-        const _element = this;
+        this.classList.remove("drag");
         self.previous = self.percent;
         self.percent = 0;
-        _element.classList.remove("drag");
 
         const animating = self.element.classList.contains("animating");
 
         if (animating) return;
-
-        self._updateAngles();
-        if (self._previousEvent && self.down) self._drift(self._previousEvent);
 
         self.down = false;
     });
@@ -199,27 +287,22 @@ ripe.CSRControls.prototype._registerHandlers = function() {
     // resets the current parameters
     area.addEventListener("mouseenter", function(event) {
         self.down = false;
+        self.middleDown = false;
         self.previous = self.percent;
         self.percent = 0;
-
-        self.canDrift = false;
     });
 
     // if a mouse move event is triggered while the mouse is
     // pressed down then updates the position of the drag element
     area.addEventListener("mousemove", function(event) {
-        const down = self.down;
-        self.mousePosX = event.pageX;
-        self.mousePosY = event.pageY;
-
-        if (down) {
-            self._previousEvent = event;
-            self.canDrift = true;
-            self.isDrifting = false;
-            self._parseDrag();
-        } else if (self.canDrift && !self.isDrifting) {
-            self.canDrift = false;
-            self._drift(event);
+        if (self.down) {
+            self._parseDrag(event);
+        } else if (self.middleDown) {
+            self._parsePan(event);
+        } else {
+            // if it is not dragging
+            self.targetDiffX = 0;
+            self.targetDiffY = 0;
         }
     });
 
@@ -263,22 +346,138 @@ ripe.CSRControls.prototype._registerHandlers = function() {
 
             if (animating) return;
 
-            self.cameraDistance = Math.max(
-                Math.min(self.cameraDistance + event.deltaY, self.maxDistance),
-                self.minDistance
-            );
-
-            self.configurator.rotate(
-                {
-                    rotationX: self.currentHorizontalRot,
-                    rotationY: self.currentVerticalRot,
-                    distance: self.cameraDistance
-                },
-                false
-            );
+            self._parseScroll(event);
         },
         { passive: false }
     );
+};
+
+ripe.CSRControls.prototype.performSimpleRotation = function() {
+    const options = {
+        rotationX: this.currRotation.x,
+        rotationY: this.currRotation.y,
+        distance: this.currentDistance
+    };
+
+    this.csr.rotate(options);
+};
+
+ripe.CSRControls.prototype.createLoop = function() {
+    this.rotationLoop = () => {
+        // apply simple rotations and translations if smooth controls
+        // are disabled
+        if (!this.smoothControls) {
+            this.currentDistance = this.targetDistance;
+            this.currRotation.x = this.validHorizontalAngle(
+                this.targetRotation.x + this.currRotation.x
+            );
+            this.currRotation.y = Math.min(
+                Math.max(this.minimumVerticalRot, this.currRotation.y + this.targetRotation.y),
+                this.maximumVerticalRot
+            );
+
+            // reset rotation
+            this.targetRotation.set(0, 0);
+
+            this.performSimpleRotation();
+            return;
+        }
+
+        // only run if any operation has happened
+        if (!this.isPanning && !this.isRotating && !this.isScrolling) return;
+
+        if (this.isRotating) this.updateRotation();
+        // panning and rotating are mutually exclusive, as the camera
+        // target would be inconsistent
+        // rotation takes priority
+        else if (this.isPanning) this.updatePan();
+
+        if (this.isScrolling) this.updateDistance();
+
+        this.performSimpleRotation();
+    };
+};
+
+ripe.CSRControls.prototype.updatePan = function() {
+    // updates pan
+    if (!this.panTarget.equals(this.currentPan)) {
+        // console.log("panning?")
+    }
+};
+
+ripe.CSRControls.prototype.updateDistance = function() {
+    const diff = this.targetDistance - this.currentDistance;
+
+    // is still scrolling, update distance
+    if (Math.abs(diff) > 0.01) {
+        // if finished reset the variable
+        this.currentDistance += diff / 5;
+    } else {
+        this.isScrolling = false;
+        this.currentDistance = this.targetDistance;
+    }
+};
+
+ripe.CSRControls.prototype.updateRotation = function() {
+    const diffX = this.targetRotation.x - this.currRotation.x;
+    const diffY = this.targetRotation.y - this.currRotation.y;
+
+    const continuesRotating = Math.abs(diffX) > 0.01 || Math.abs(diffY) > 0.01;
+
+    if (continuesRotating) {
+        this.currRotation.x += diffX / 5;
+
+        this.currRotation.y = this.validVericalAngle(this.currRotation.y + diffY / 5);
+    } else {
+        this.isRotating = false;
+        // reset angles to normal bounds
+        this.currRotation.x = this.validHorizontalAngle(this.currRotation.x);
+        this.currRotation.y = this.validVericalAngle(this.currRotation.y);
+
+        this.targetRotation.x = this.validHorizontalAngle(this.targetRotation.x);
+        this.targetRotation.y = this.validVericalAngle(this.targetRotation.y);
+    }
+};
+
+ripe.CSRControls.prototype._parseScroll = function(event) {
+    this.isScrolling = true;
+
+    const increase = (this.maxDistance - this.minDistance) / 10;
+    const diff = event.deltaY >= 0 ? increase : increase * -1;
+
+    this.targetDistance = Math.max(
+        Math.min(this.targetDistance + diff, this.maxDistance),
+        this.minDistance
+    );
+};
+
+ripe.CSRControls.prototype._parsePan = function(event) {
+    console.log(event);
+};
+
+ripe.CSRControls.prototype._parseDrag = function(event) {
+    this.isRotating = true;
+
+    // set the new values as the normal
+    // this.baseRotation.set(this.targetRotation.x, this.targetRotation.y)
+
+    let newX = 0;
+    let newY = 0;
+
+    // only use the rotation that matters according to the locked
+    // rotation axis
+    if (this.lockRotation !== "vertical") newX = event.x - this._previousEvent.x;
+
+    if (this.lockRotation !== "horizontal") newY = event.y - this._previousEvent.y;
+
+    this.targetRotation.x = this.targetRotation.x + newX;
+    this.targetRotation.y = Math.min(
+        Math.max(this.targetRotation.y + newY, this.minimumVerticalRot),
+        this.maximumVerticalRot
+    );
+
+    // after all the calculations are done, update the previous event
+    this._previousEvent = event;
 };
 
 /**
@@ -288,15 +487,13 @@ ripe.CSRControls.prototype._registerHandlers = function() {
  * @param {Object} options If specified, update the base and current angles based on the options.
  */
 ripe.CSRControls.prototype._updateAngles = function(options = {}) {
-    const newX = options.rotationX === undefined ? this.currentHorizontalRot : options.rotationX;
-    const newY = options.rotationY === undefined ? this.currentVerticalRot : options.rotationY;
+    const newX = options.rotationX === undefined ? this.currRotation.x : options.rotationX;
+    const newY = options.rotationY === undefined ? this.currRotation.y : options.rotationY;
 
-    this._baseHorizontalRot = this._validatedAngle(newX);
-    this.currentHorizontalRot = this._validatedAngle(newX);
+    this.currRotation.x = this._validatedAngle(newX);
     this.mouseDeltaX = 0;
 
-    this._baseVerticalRot = newY;
-    this.currentVerticalRot = newY;
+    this.currRotation.y = newY;
     this.mouseDeltaY = 0;
 };
 
@@ -308,7 +505,9 @@ ripe.CSRControls.prototype._updateAngles = function(options = {}) {
  * @returns {Number} The normalized rotation (degrees) for the given position.
  */
 ripe.CSRControls.prototype._positionToRotation = function(position) {
-    return (position / 24) * 360;
+    const viewFrames = 24;
+
+    return (position / viewFrames) * 360;
 };
 
 /**
@@ -318,7 +517,9 @@ ripe.CSRControls.prototype._positionToRotation = function(position) {
  * @returns {Number} The normalized position for the provided rotation (degrees).
  */
 ripe.CSRControls.prototype._rotationToPosition = function(rotationX) {
-    return (this._validatedAngle(parseInt(rotationX)) / 360) * 24;
+    const viewFrames = 24;
+
+    return (this.validHorizontalAngle(parseInt(rotationX)) / 360) * viewFrames;
 };
 
 /**
@@ -328,132 +529,17 @@ ripe.CSRControls.prototype._rotationToPosition = function(rotationX) {
  * @returns {String} The normalized view value for the given Y rotation.
  */
 ripe.CSRControls.prototype._rotationToView = function(rotationY) {
-    if (rotationY > 85) return "top";
-    if (rotationY < -85) return "bottom";
-    return "side";
-};
-
-/**
- * @ignore
- */
-ripe.CSRControls.prototype._parseDrag = function() {
-    // retrieves the last recorded mouse position
-    // and the current one and calculates the
-    // drag movement made by the user
-    const referenceX = this.referenceX;
-    const referenceY = this.referenceY;
-    const mousePosX = this.mousePosX;
-    const mousePosY = this.mousePosY;
-
-    const base = this.base;
-    this.mouseDeltaX = referenceX - mousePosX;
-    this.mouseDeltaY = referenceY - mousePosY;
-    const elementWidth = this.element.clientWidth;
-    const elementHeight = this.element.clientHeight;
-    const percentX = this.mouseDeltaX / elementWidth;
-    const percentY = this.mouseDeltaY / elementHeight;
-    this.percent = percentX;
-    const sensitivity = this.element.dataset.sensitivity || this.sensitivity;
-    const verticalThreshold = this.element.dataset.verticalThreshold || this.verticalThreshold;
-
+    const verticalThreshold = this.element.dataset.verticalThreshold || 85;
     // if the drag was vertical then alters the
     // view if it is supported by the product
     const view = this.element.dataset.view;
-    let nextView = view;
-    if (sensitivity * percentY > verticalThreshold) {
-        nextView = view === "top" ? "side" : "bottom";
-        this.referenceY = mousePosY;
-    } else if (sensitivity * percentY < verticalThreshold * -1) {
-        nextView = view === "bottom" ? "side" : "top";
-        this.referenceY = mousePosY;
+
+    if (rotationY > verticalThreshold) {
+        return view === "top" ? "side" : "bottom";
     }
-
-    // retrieves the current view and its frames
-    // and determines which one is the next frame
-    const viewFrames = 24;
-    const offset = Math.round((sensitivity * percentX * viewFrames) / 24);
-    let nextPosition = (base - offset) % viewFrames;
-    nextPosition = nextPosition >= 0 ? nextPosition : viewFrames + nextPosition;
-
-    // if the view changes then uses the last
-    // position presented in that view, if not
-    // then shows the next position according
-    // to the drag
-    nextPosition = view === nextView ? nextPosition : this._lastFrame[nextView] || 0;
-
-    const nextFrame = ripe.getFrameKey(nextView, nextPosition);
-    this.configurator.changeFrame(nextFrame);
-};
-
-/**
- *
- * Called from the configurator, calls the correct function to update the rotations.
- * @param {*} frame The current frame that is selected
- * @param {*} options Options for
- */
-ripe.CSRControls.prototype.updateRotation = function(frame, options) {
-    const dragging = this.element.classList.contains("drag");
-
-    const _frame = ripe.parseFrameKey(frame);
-
-    if (dragging) this._updateDragRotations();
-    else this._updateRotations(_frame, options);
-};
-
-/**
- * Sets the rotation of the camera and meshes based on their current
- * continuous rotation.
- */
-ripe.CSRControls.prototype._updateDragRotations = function() {
-    let needsUpdate = false;
-
-    // if there is no difference to the previous drag rotation in the X axis
-    if (
-        this._baseHorizontalRot - this.mouseDeltaX !== this.currentHorizontalRot &&
-        this.lockRotation !== "vertical"
-    ) {
-        this.currentHorizontalRot = this._baseHorizontalRot - this.mouseDeltaX;
-        needsUpdate = true;
-    }
-
-    // if there is no difference to the previous drag rotation in the Y axis
-    if (
-        this._baseVerticalRot - this.mouseDeltaY !== this.currentVerticalRot &&
-        this.lockRotation !== "horizontal"
-    ) {
-        // in case the bottom is reached, deltaY is inverted
-        if (this.mouseDeltaY * -1 + this._baseVerticalRot <= this.minimumVerticalRot) {
-            const diff = this.minimumVerticalRot - (this.mouseDeltaY * -1 + this._baseVerticalRot);
-            this.currentVerticalRot = this.minimumVerticalRot;
-
-            this.referenceY -= diff;
-            needsUpdate = true;
-        }
-        // in case the top is reached
-        else if (this.mouseDeltaY * -1 + this._baseVerticalRot >= this.maximumVerticalRot) {
-            const diff = this.maximumVerticalRot - (this.mouseDeltaY * -1 + this._baseVerticalRot);
-            this.currentVerticalRot = this.maximumVerticalRot;
-
-            this.referenceY -= diff;
-            needsUpdate = true;
-        }
-        // else is valid rotation
-        else {
-            this.currentVerticalRot = this._baseVerticalRot - this.mouseDeltaY;
-            needsUpdate = true;
-        }
-    }
-
-    if (needsUpdate) {
-        this.configurator.rotate(
-            {
-                rotationX: this.currentHorizontalRot,
-                rotationY: this.currentVerticalRot,
-                distance: this.cameraDistance
-            },
-            false
-        );
-    }
+    if (rotationY < verticalThreshold * -1) {
+        return view === "bottom" ? "side" : "top";
+    } else return view;
 };
 
 /**
@@ -463,13 +549,15 @@ ripe.CSRControls.prototype._updateDragRotations = function() {
  * @param {String} frame The new frame.
  * @param {Object} options Options to be used for the change.
  */
-ripe.CSRControls.prototype._updateRotations = async function(frame, options) {
+ripe.CSRControls.prototype.changeFrameRotation = async function(frame, options) {
+    const _frame = ripe.parseFrameKey(frame);
+
     const animating = this.element.classList.contains("animating");
 
     // parses the requested frame value according to the pre-defined
     // standard (eg: side-3) and then unpacks it as view and position
-    const nextView = frame[0];
-    const nextPosition = parseInt(frame[1]);
+    const nextView = _frame[0];
+    const nextPosition = parseInt(_frame[1]);
     const position = parseInt(this.element.dataset.position);
     const view = this.element.dataset.view;
 
@@ -487,8 +575,8 @@ ripe.CSRControls.prototype._updateRotations = async function(frame, options) {
     if (revolutionDuration) {
         duration = revolutionDuration;
 
-        const current = this._validatedAngle(this._baseHorizontalRot);
-        const next = this._validatedAngle(nextHorizontalRot);
+        const current = this.validHorizontalAngle(this.currRotation.x);
+        const next = this.validHorizontalAngle(nextHorizontalRot);
         const diff = Math.abs(next - current);
 
         duration = (diff * revolutionDuration) / 360;
@@ -501,76 +589,11 @@ ripe.CSRControls.prototype._updateRotations = async function(frame, options) {
     if (nextView === "top") nextVerticalRot = this.maximumVerticalRot;
     if (nextView === "bottom") nextVerticalRot = this.minimumVerticalRot;
 
-    if (view !== nextView) this.cameraDistance = this._baseCameraDistance;
+    if (view !== nextView) this.currentDistance = this._basecurrentDistance;
 
-    await this.configurator.rotate({
-        rotationX: this._validatedAngle(nextHorizontalRot),
-        rotationY: nextVerticalRot,
-        distance: this.cameraDistance,
-        duration: duration
-    });
-};
-
-/**
- * Function to allow drifting if the mouse has acceleration to prevent
- * immediately stopping.
- *
- * @param {Event} event The mouse event that is used for the drift.
- */
-ripe.CSRControls.prototype._drift = function(event) {
-    // if specified that can't drift, return immediately
-    if (!this.mouseDrift) return;
-
-    let currentValueX = event.movementX;
-    let currentValueY = event.movementY;
-
-    let pos = 0;
-    let startTime = 0;
-    const driftAnimation = time => {
-        if (!this.isDrifting) return;
-
-        startTime = startTime === 0 ? time : startTime;
-
-        pos = (time - startTime) / this.driftDuration;
-
-        currentValueX = ripe.easing.easeInQuad(
-            pos,
-            this._baseHorizontalRot,
-            this._baseHorizontalRot + event.movementX,
-            this.driftDuration
-        );
-        currentValueY = ripe.easing.easeInQuad(
-            pos,
-            this._baseVerticalRot,
-            this._baseVerticalRot + event.movementY,
-            this.driftDuration
-        );
-
-        if (this.lockRotation !== "vertical") {
-            this.currentHorizontalRot = this._validatedAngle(currentValueX);
-        }
-        if (this.lockRotation !== "horizontal") {
-            this.currentVerticalRot = Math.min(
-                Math.max(currentValueY, this.minimumVerticalRot),
-                this.maximumVerticalRot
-            );
-        }
-
-        this.configurator.rotate(
-            {
-                rotationX: this.currentHorizontalRot,
-                rotationY: this.currentVerticalRot,
-                distance: this.cameraDistance
-            },
-            false
-        );
-
-        if (pos < 1.0) requestAnimationFrame(driftAnimation);
-        else this._updateAngles();
-    };
-
-    this.isDrifting = true;
-    requestAnimationFrame(driftAnimation);
+    // sends command to configurator to rotate, so it can handle
+    // the event appropriately
+    await this._applyRotations(nextView, nextPosition);
 };
 
 /**
@@ -588,10 +611,8 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
     const nextView = this._rotationToView(finalYRotation);
     const nextPosition = this._rotationToPosition(finalXRotation);
 
-    this._baseHorizontalRot = this.currentHorizontalRot;
-    this._baseVerticalRot = this.currentVerticalRot;
-
-    const startingCameraDistance = this.cameraDistance;
+    const baseRotation = this.currRotation.clone();
+    const baseDistance = this.currentDistance;
 
     let pos = 0;
     let startTime = 0;
@@ -600,50 +621,20 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
         startTime = startTime === 0 ? time : startTime;
         pos = (time - startTime) / options.duration;
 
-        this.currentHorizontalRot = ripe.easing[this.rotationEasing](
+        this.currRotation.x = ripe.easing[this.rotationEasing](pos, baseRotation.x, finalXRotation);
+        this.currRotation.y = ripe.easing[this.rotationEasing](pos, baseRotation.y, finalYRotation);
+
+        this.currentDistance = ripe.easing[this.rotationEasing](
             pos,
-            this._baseHorizontalRot,
-            finalXRotation
-        );
-        this.currentVerticalRot = ripe.easing[this.rotationEasing](
-            pos,
-            this._baseVerticalRot,
-            finalYRotation
+            baseDistance,
+            this._basecurrentDistance
         );
 
-        this.cameraDistance = ripe.easing[this.rotationEasing](
-            pos,
-            startingCameraDistance,
-            this._baseCameraDistance
-        );
-
-        this.configurator.rotate(
-            {
-                rotationX: this.currentHorizontalRot,
-                rotationY: this.currentVerticalRot,
-                distance: this.cameraDistance
-            },
-            false
-        );
+        this.performSimpleRotation();
 
         if (pos < 1) {
             requestAnimationFrame(transition);
         } else {
-            this.currentHorizontalRot = finalXRotation;
-            this.currentVerticalRot = finalYRotation;
-
-            this._updateAngles();
-
-            // performs final rotation to make sure it is perfectly aligned
-            this.configurator.rotate(
-                {
-                    rotationX: this.currentHorizontalRot,
-                    rotationY: this.currentVerticalRot,
-                    distance: this.cameraDistance
-                },
-                false
-            );
-
             this.element.classList.remove("animating");
             this.element.classList.remove("no-drag");
         }
@@ -659,7 +650,7 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
         finalXRotation = this._positionToRotation(nextPosition);
 
         // figures out the best final rotation to avoid going through longest path
-        const diff = finalXRotation - this._baseHorizontalRot;
+        const diff = finalXRotation - this.currRotation.x;
         if (diff < -180) finalXRotation += 360;
         if (diff > 180) finalXRotation -= 360;
     }
@@ -670,12 +661,28 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
 };
 
 /**
- * Returns a valid angle to prevent going over 360 or under 0 degrees.
+ * Returns a valid horizontal angle to prevent going over 360 or under 0 degrees.
  *
- * @param {Number} angle The new angle.
+ * @param {Number} angle The starting angle.
  */
-ripe.CSRControls.prototype._validatedAngle = function(angle) {
-    if (angle > 360) return angle - 360;
-    if (angle < 0) return angle + 360;
-    return angle;
+ripe.CSRControls.prototype.validHorizontalAngle = function(angle) {
+    let newAngle = angle;
+    if (angle > 360) newAngle -= 360;
+    if (angle < 0) newAngle += 360;
+
+    return Math.min(Math.max(newAngle, this.minimumHorizontalRot), this.maximumHorizontalRot);
+};
+
+/**
+ * Returns a valid horizontal angle to prevent going over 360 or under 0 degrees.
+ *
+ * @param {Number} angle The starting angle.
+ */
+ripe.CSRControls.prototype.validVericalAngle = function(angle) {
+    let newAngle = angle;
+    const maxAngle = 89;
+
+    if (newAngle > maxAngle) newAngle = maxAngle;
+    if (newAngle < maxAngle * -1) newAngle = maxAngle * -1;
+    return Math.min(Math.max(this.minimumVerticalRot, newAngle), this.maximumVerticalRot);
 };

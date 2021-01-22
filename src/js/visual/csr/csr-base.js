@@ -19,6 +19,8 @@ if (
  * rendering, including loading meshes and materials, as well as setting
  * up the scene to be used.
  *
+ * @param {ConfiguratorCSR} configurator The base instantce for the
+ * configurator.
  * @param {Object} owner The owner (customizer instance) for
  * this configurator.
  * @param {Object} element The DOM element in which the renderer will
@@ -26,10 +28,11 @@ if (
  * @param {Object} options The options to be used to configure the
  * renderer instance to be created.
  */
-ripe.CSR = function(owner, element, options) {
+ripe.CSR = function(configurator, owner, element, options) {
     this.owner = owner;
     this.type = this.type || "CSR";
     this.element = element;
+    this.configurator = configurator;
 
     this.library = options.library;
 
@@ -77,9 +80,28 @@ ripe.CSR = function(owner, element, options) {
 
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
+
     this.gui = new ripe.CSRGui(this, options);
 
     this.scene = new this.library.Scene();
+
+    // base initialization, does not require assets to be loaded
+    this._initializeCameras();
+    this._initializeRenderer();
+    // this._initializeLights();
+    this._registerHandlers();
+    this._initializeShaders();
+    this._initializeRaycaster();
+
+    // create support structures
+    this.initials = new ripe.CSRInitials(this.owner, options);
+    this.controls = new ripe.CSRControls(this, configurator, this.element, options);
+    this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
+
+    // triggers the initial loading of the assets, according to the
+    // configuration currently set in the instance, and stores the result
+    // in the current scene
+    this.assetManager.loadAssets(this.scene);
 };
 
 ripe.CSR.prototype = ripe.build(ripe.Observable.prototype);
@@ -93,6 +115,8 @@ ripe.CSR.prototype.constructor = ripe.CSR;
  */
 ripe.CSR.prototype.updateOptions = async function(options) {
     this.assetManager.updateOptions(options);
+    this.controls.updateOptions(options);
+    this.initials.updateOptions(options);
 
     this._setCameraOptions(options);
     this._setRenderOptions(options);
@@ -114,16 +138,10 @@ ripe.CSR.prototype.updateOptions = async function(options) {
  *
  * @param {CSRAssetManager} assetManager
  */
-ripe.CSR.prototype.initialize = async function(assetManager) {
-    this.assetManager = assetManager;
-
+ripe.CSR.prototype.initialize = async function() {
     this._createLoops();
-    this._initializeLights();
-    this._initializeCameras();
-    this._initializeRenderer();
-    this._registerHandlers();
-    this._initializeShaders();
-    this._initializeRaycaster();
+
+    this.initials.initialize(this.assetManager);
 
     // triggers the loading of the remote assets that are going
     // to be used in scene initialization
@@ -200,14 +218,12 @@ ripe.CSR.prototype._createLoops = function() {
     this.needsRenderUpdate = false;
     this.forceStopRender = false;
 
-    this.renderLoop = () => {
+    const renderLoop = () => {
         if (this.needsRenderUpdate && !this.forceStopRender) {
             this.composer.render();
         }
 
         this.needsRenderUpdate = false;
-
-        requestAnimationFrame(this.renderLoop);
     };
 
     this.raycastClock = new this.library.Clock();
@@ -215,9 +231,9 @@ ripe.CSR.prototype._createLoops = function() {
     this.needsRaycastUpdate = false;
     this.raycastEvent = null;
     // number of seconds separating each call to trigger a raycast
-    this.raycastThreshold = 0.1;
+    this.raycastThreshold = 0.05;
 
-    this.raycastLoop = () => {
+    const raycastLoop = () => {
         // time the last "getDelta" was called
         const previousTime = this.raycastClock.oldTime;
         const delta = this.raycastClock.getDelta();
@@ -235,14 +251,17 @@ ripe.CSR.prototype._createLoops = function() {
             // not take into account the latest "getDelta"
             this.raycastClock.oldTime = previousTime;
         }
-
-        requestAnimationFrame(this.raycastLoop);
     };
 
-    // begin render loop
-    requestAnimationFrame(this.renderLoop);
-    // begin raycast loop for increased performance
-    requestAnimationFrame(this.raycastLoop);
+    const fullLoop = time => {
+        renderLoop();
+        raycastLoop();
+        this.controls.rotationLoop(time);
+        requestAnimationFrame(fullLoop);
+    };
+
+    // begin full loop
+    requestAnimationFrame(fullLoop);
 };
 
 /**
@@ -399,6 +418,7 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
     let pos = 0;
     let startTime = 0;
 
+    console.log("Changing highlight for " + part.name);
     const changeHighlightTransition = time => {
         startTime = startTime === 0 ? time : startTime;
 
@@ -567,6 +587,9 @@ ripe.CSR.prototype.rotate = function(options) {
     this.camera.position.y =
         this.cameraHeight + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
     this.camera.position.z = distance * Math.cos((Math.PI / 180) * options.rotationX);
+
+    // update to camera target, recenter
+    if (options.cameraTarget) this.cameraTarget = options.cameraTarget;
 
     this.camera.lookAt(this.cameraTarget);
     this.needsRenderUpdate = true;
@@ -1087,12 +1110,6 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     if (!this.scene) return;
     if (!this.assetManager) return;
 
-    // starts the casting operation by attributing a new cast identifier that
-    // is latter going to be used to check if the cast is up-to-date (to avoid
-    // async related issues)
-    const castId = this.castId ? this.castId + 1 : 1;
-    this._castId = castId;
-
     // in case there's no available bounding box set, tries to retrieve a new
     // bounding box from the configurator's DOM element
     if (!this.boundingBox) this.boundingBox = this.element.getBoundingClientRect();
@@ -1178,6 +1195,10 @@ ripe.CSR.prototype._convertRaycast = function(coordinates) {
     }
 
     return { x: newX, y: newY };
+};
+
+ripe.CSR.prototype.changeFrameRotation = function(frame, options) {
+    this.controls.changeFrameRotation(frame, options);
 };
 
 Object.defineProperty(ripe.CSR.prototype, "wireframe", {

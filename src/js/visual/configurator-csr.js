@@ -65,21 +65,17 @@ ripe.ConfiguratorCSR.prototype.init = function() {
     this._finalize = null;
     this._observer = null;
     this._ownerBinds = {};
-    this.viewAnimate =
-        this.options.viewAnimate === undefined ? "crossfade" : this.options.viewAnimate;
-    this.positionAnimate =
-        this.options.positionAnimate === undefined ? "rotate" : this.options.positionAnimate;
 
     // registers for the selected part event on the owner
     // so that we can highlight the associated part
     this._ownerBinds.selected_part = this.owner.bind("selected_part", part =>
-        this.renderer.highlight(part)
+        this.csr.highlight(part)
     );
 
     // registers for the deselected part event on the owner
     // so that we can remove the highlight of the associated part
     this._ownerBinds.deselected_part = this.owner.bind("deselected_part", part =>
-        this.renderer.lowlight()
+        this.csr.lowlight()
     );
 
     // creates the necessary DOM elements and runs
@@ -110,23 +106,7 @@ ripe.ConfiguratorCSR.prototype.init = function() {
 
     // creates the instances for the multiple CSR related components
     // to be used for the CSR interactive experience
-    this.renderer = new ripe.CSR(this.owner, this.element, this.options);
-    this.initials = new ripe.CSRInitials(this.owner, this.options);
-    this.controls = new ripe.CSRControls(this, this.element, this.options);
-    this.assetManager = new ripe.CSRAssetManager(this, this.owner, this.options);
-
-    // triggers the initial loading of the assets, according to the
-    // configuration currently set in the instance
-    this.assetManager.loadAssets(this.renderer.scene);
-};
-
-/**
- * Called only after the GLTF is finished loading by the asset manager, begins
- * initialization of the renderer and initials assistant.
- */
-ripe.ConfiguratorCSR.prototype.initializeLoading = function() {
-    this.initials.initialize(this.assetManager);
-    this.renderer.initialize(this.assetManager);
+    this.csr = new ripe.CSR(this, this.owner, this.element, this.options);
 };
 
 /**
@@ -183,11 +163,8 @@ ripe.ConfiguratorCSR.prototype.disposeResources = async function() {
 ripe.ConfiguratorCSR.prototype.updateOptions = async function(options, update = true) {
     ripe.Visual.prototype.updateOptions.call(this, options);
 
-    this.renderer.updateOptions(options);
-    this.controls.updateOptions(options);
-    this.assetManager.updateOptions(options);
-    this.initials.updateOptions(options);
-
+    this.csr.updateOptions(options);
+    
     this.width = options.width === undefined ? this.width : options.width;
     this.height = options.height === undefined ? this.height : options.height;
     this.format = options.format === undefined ? this.format : options.format;
@@ -236,11 +213,11 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
 
     const duration = options.duration || 500;
 
-    if (!this.renderer) return;
+    if (!this.csr) return;
 
     // crossfade when changing materials
     if (options.reason && options.reason.includes("set part")) {
-        await this.renderer.crossfade({ duration: duration, parts: this.owner.parts }, "material");
+        await this.csr.crossfade({ duration: duration, parts: this.owner.parts }, "material");
     }
 
     if (this.element.classList.contains("crossfading")) return;
@@ -248,15 +225,15 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
     // removes the current text meshes from the scene, and adds the newly
     // generated meshes
     if (options.reason && options.reason === "set initials") {
-        this.renderer.updateInitials("remove", this.initials.textMeshes);
+        this.csr.updateInitials("remove", this.initials.textMeshes);
         await this.initials.update();
-        this.renderer.updateInitials("add", this.initials.textMeshes);
-        this.renderer.needsRenderUpdate = true;
+        this.csr.updateInitials("add", this.initials.textMeshes);
+        this.csr.needsRenderUpdate = true;
     }
-
+    
     // removes the highlight support from the matched object as a new
     // frame is going to be "calculated" and rendered (not same mask)
-    this.renderer.lowlight();
+    this.csr.lowlight();
 
     // returns the resulting value indicating if the loading operation
     // as been triggered with success (effective operation)
@@ -272,57 +249,6 @@ ripe.ConfiguratorCSR.prototype.updateViewPosition = function(newPos, newView) {
 
     this.element.dataset.position = newPos;
     this.element.dataset.view = newView;
-};
-
-/**
- * Function to perform a rotation, triggered by the controls. Assesses whether a transition
- * is necessary, and if so, calls the correct function to handle the transition depending
- * on the Configurator's settings.
- * @param {Object} options Set of parameters that guide the rotation such as:
- * - 'rotationX' - The new horizontal rotation for the camera.
- * - 'rotationY' - The new vertical rotation for the camera.
- * - 'distance' - The new camera distance.
- * @param {Boolean} isAnimated Decides whether it is a simple rotation (such as when dragging), and
- * if so, no animation transition is triggered.
- */
-ripe.ConfiguratorCSR.prototype.rotate = async function(options, isAnimated = true) {
-    const newPos = this.controls._rotationToPosition(options.rotationX);
-    const newView = this.controls._rotationToView(options.rotationY);
-
-    // simple rotate, without applying any transitions
-    if (!isAnimated) {
-        this.renderer.rotate(options);
-        this.updateViewPosition(newPos, newView);
-        return;
-    }
-
-    // checks to see if transition is required, and delegates
-    // the transition to the controls in case of rotation, and
-    // the renderer in case of a crossfade
-    if (this.view !== newView) {
-        if (this.viewAnimate === "crossfade") {
-            await this.renderer.crossfade(options, "rotation");
-            // updates the internal angles of the controls after
-            // the crossfade finishes
-            this.controls._updateAngles(options);
-        } else if (this.viewAnimate === "rotate") {
-            this.controls.rotationTransition(options);
-        } else if (this.viewAnimate === "none") {
-            this.renderer.rotate(options);
-        }
-    } else if (this.position !== newPos) {
-        if (this.positionAnimate === "crossfade") {
-            await this.renderer.crossfade(options, "rotation");
-            this.controls._updateAngles(options);
-        } else if (this.positionAnimate === "rotate") {
-            this.controls.rotationTransition(options);
-        } else if (this.positionAnimate === "none") {
-            this.renderer.rotate(options);
-        }
-    }
-
-    // update configurator view and position variables
-    this.updateViewPosition(newPos, newView);
 };
 
 /**
@@ -363,8 +289,8 @@ ripe.ConfiguratorCSR.prototype.resize = async function(size) {
 
     // on the resize of the configurator, the renderer needs to update
     // the bounding box to maintain correct raycasting
-    if (this.renderer) {
-        this.renderer.updateSize();
+    if (this.csr) {
+        this.csr.updateSize();
     }
 
     await this.update({});
@@ -397,14 +323,14 @@ ripe.ConfiguratorCSR.prototype.leaveFullscreen = async function() {
  * Turns on (enables) the masks on selection/highlight.
  */
 ripe.ConfiguratorCSR.prototype.enableMasks = function() {
-    if (this.renderer) this.renderer.useMasks = true;
+    if (this.csr) this.csr.useMasks = true;
 };
 
 /**
  * Turns off (disables) the masks on selection/highlight.
  */
 ripe.ConfiguratorCSR.prototype.disableMasks = function() {
-    if (this.renderer) this.renderer.useMasks = false;
+    if (this.csr) this.csr.useMasks = false;
 };
 
 /**
@@ -465,7 +391,7 @@ ripe.ConfiguratorCSR.prototype._initLayout = function() {
 ripe.ConfiguratorCSR.prototype.changeFrame = async function(frame, options = {}) {
     if (this.element.classList.contains("animating")) return;
 
-    this.controls.updateRotation(frame, options);
+    this.csr.changeFrameRotation(frame, options);
 
     await this.update();
 };
@@ -479,9 +405,9 @@ ripe.ConfiguratorCSR.prototype._updateConfig = async function(animate) {
     // is being loaded
     this.ready = false;
 
-    if (this.renderer) {
+    if (this.csr) {
         // removes the highlight from any part
-        this.renderer.lowlight();
+        this.csr.lowlight();
     }
 
     // retrieves the new product frame object and sets it
@@ -535,9 +461,9 @@ ripe.ConfiguratorCSR.prototype._updateConfig = async function(animate) {
 
 Object.defineProperty(ripe.ConfiguratorCSR.prototype, "wireframe", {
     get: function() {
-        return this.renderer.wireframe;
+        return this.csr.wireframe;
     },
     set: function(value) {
-        this.renderer.wireframe = value;
+        this.csr.wireframe = value;
     }
 });
