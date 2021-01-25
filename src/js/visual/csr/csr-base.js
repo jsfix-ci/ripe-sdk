@@ -128,10 +128,12 @@ ripe.CSR.prototype._registerHandlers = function() {
     area.addEventListener("mouseout", function(event) {
         self.lowlight();
         self.down = false;
+        self.raycastEvent = null;
     });
 
     area.addEventListener("mouseup", function(event) {
         self.down = false;
+        self.raycastEvent = null;
     });
 
     area.addEventListener("mousemove", function(event) {
@@ -853,6 +855,7 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
     let startTime = 0;
 
     console.log("Changing highlight for " + part.name);
+
     const changeHighlightTransition = time => {
         startTime = startTime === 0 ? time : startTime;
 
@@ -866,11 +869,15 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
         currentG = ripe.easing[this.highlightEasing](pos, startG, endColor.g);
         currentB = ripe.easing[this.highlightEasing](pos, startB, endColor.b);
 
+        this.needsRenderUpdate = true;
+
         if (pos <= 1) {
-            this.needsRenderUpdate = true;
             requestAnimationFrame(changeHighlightTransition);
         } else {
-            this.needsRenderUpdate = false;
+            part.material.color.r = endColor.r;
+            part.material.color.g = endColor.g;
+            part.material.color.b = endColor.b;
+
             if (this.element.classList.contains("no-raycast")) {
                 this.element.classList.remove("no-raycast");
             }
@@ -1019,7 +1026,6 @@ ripe.CSR.prototype.rotate = function(options) {
     // update to camera target, recenter
     if (options.target) {
         this.cameraTarget = options.target;
-        this.camera.lookAt(this.cameraTarget);
     }
 
     const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
@@ -1032,6 +1038,8 @@ ripe.CSR.prototype.rotate = function(options) {
 
     this.needsRenderUpdate = true;
 
+    this.camera.lookAt(this.cameraTarget);
+    
     // update position and view information
     const newView = this._rotationToView(options.rotationY);
     const newPosition = this._rotationToPosition(options.rotationX);

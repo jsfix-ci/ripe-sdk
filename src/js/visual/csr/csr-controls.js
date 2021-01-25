@@ -408,8 +408,14 @@ ripe.CSRControls.prototype._parsePan = function(event) {
     const radY = this.currRotation.y * (Math.PI / 180);
 
     //            event.x impact                                event.x impact when with tilted camera                  event.y impact when with tilted camera
-    const xDiff = newX * Math.cos(radX) * -1 * Math.cos(radY) + newX * Math.cos(radX) * Math.abs(Math.sin(radY)) * -1 + newY * Math.sin(radX) * Math.sin(radY);
-    const zDiff = newX * Math.sin(radX) * -1 * Math.cos(radY) + newX * Math.sin(radX) * Math.abs(Math.sin(radY)) * -1 + newY * Math.cos(radX) * Math.sin(radY) * -1;
+    const xDiff =
+        newX * Math.cos(radX) * -1 * Math.cos(radY) +
+        newX * Math.cos(radX) * Math.abs(Math.sin(radY)) * -1 +
+        newY * Math.sin(radX) * Math.sin(radY);
+    const zDiff =
+        newX * Math.sin(radX) * -1 * Math.cos(radY) +
+        newX * Math.sin(radX) * Math.abs(Math.sin(radY)) * -1 +
+        newY * Math.cos(radX) * Math.sin(radY) * -1;
     this.targetPan.x += xDiff;
     this.targetPan.y += newY * Math.cos(radY);
     this.targetPan.z += zDiff;
