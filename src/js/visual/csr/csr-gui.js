@@ -40,7 +40,7 @@ ripe.CSRGui.prototype.setup = function() {
 
     const self = this;
 
-    this.gui = new this.guiLib.CSRGui({ width: 300 });
+    this.gui = new this.guiLib.GUI({ width: 300 });
 
     this.gui.domElement.id = "gui";
 

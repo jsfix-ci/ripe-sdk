@@ -590,10 +590,17 @@ ripe.CSRControls.prototype.recenterTransition = async function(targetPart) {
         box.max.y - box.min.y,
         box.max.z - box.min.z
     );
+
     // take FOV into account, the higher it is, the
     // less distance it needs to be
+    const endDistance = Math.max(
+        Math.min(
+            maxElement / 1.7 / Math.sin(this.deg2rad(this.csr.cameraFOV / 2)),
+            this.maxDistance
+        ),
+        this.minDistance
+    );
 
-    const endDistance = maxElement / 2.3 / Math.sin(this.deg2rad(this.csr.cameraFOV / 2));
     const startDistance = this.currentDistance;
 
     const startingPan = this.currentPan.clone();

@@ -1028,22 +1028,20 @@ ripe.CSR.prototype.rotate = function(options) {
         this.cameraTarget = options.target;
     }
 
-    if (options.rotationX && options.rotationY) {
-        const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
-        this.camera.position.x =
-            this.cameraTarget.x + distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
-        this.camera.position.y =
-            this.cameraTarget.y + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
-        this.camera.position.z =
-            this.cameraTarget.z + distance * Math.cos((Math.PI / 180) * options.rotationX);
+    const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
+    this.camera.position.x =
+        this.cameraTarget.x + distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
+    this.camera.position.y =
+        this.cameraTarget.y + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
+    this.camera.position.z =
+        this.cameraTarget.z + distance * Math.cos((Math.PI / 180) * options.rotationX);
 
-        // update position and view information
-        const newView = this._rotationToView(options.rotationY);
-        const newPosition = this._rotationToPosition(options.rotationX);
+    // update position and view information
+    const newView = this._rotationToView(options.rotationY);
+    const newPosition = this._rotationToPosition(options.rotationX);
 
-        // update configurator view and position variables
-        this.configurator.updateViewPosition(newView, newPosition);
-    }
+    // update configurator view and position variables
+    this.configurator.updateViewPosition(newView, newPosition);
 
     this.camera.lookAt(this.cameraTarget);
 
