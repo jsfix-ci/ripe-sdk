@@ -401,15 +401,18 @@ ripe.CSRControls.prototype._parsePan = function(event) {
 
     this.isPanning = true;
 
-    const newX = (event.x - this._previousPanEvent.x) / 30;
-    const newY = (event.y - this._previousPanEvent.y) / 30;
+    const newX = (event.x - this._previousPanEvent.x) / 100;
+    const newY = (event.y - this._previousPanEvent.y) / 100;
 
     const radX = this.currRotation.x * (Math.PI / 180);
     const radY = this.currRotation.y * (Math.PI / 180);
 
-    this.targetPan.x += newX * Math.cos(radX);
-    this.targetPan.y += newY * Math.cos(radY) * -1;
-    this.targetPan.z += newX * Math.sin(radX);
+    //            event.x impact                                event.x impact when with tilted camera                  event.y impact when with tilted camera
+    const xDiff = newX * Math.cos(radX) * -1 * Math.cos(radY) + newX * Math.cos(radX) * Math.abs(Math.sin(radY)) * -1 + newY * Math.sin(radX) * Math.sin(radY);
+    const zDiff = newX * Math.sin(radX) * -1 * Math.cos(radY) + newX * Math.sin(radX) * Math.abs(Math.sin(radY)) * -1 + newY * Math.cos(radX) * Math.sin(radY) * -1;
+    this.targetPan.x += xDiff;
+    this.targetPan.y += newY * Math.cos(radY);
+    this.targetPan.z += zDiff;
 
     // after all the calculations are done, update the previous event
     this._previousPanEvent = event;
