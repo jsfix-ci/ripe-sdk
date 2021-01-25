@@ -221,6 +221,11 @@ ripe.CSRControls.prototype._registerHandlers = function() {
         self.middleDown = false;
     });
 
+    // recenter operation
+    area.addEventListener("dblclick", function(event) {
+        self.csr._attemptRaycast(event, "recenter");
+    });
+
     // if a mouse move event is triggered while the mouse is
     // pressed down then updates the position of the drag element
     area.addEventListener("mousemove", function(event) {
@@ -429,9 +434,6 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
 
     if (!this.element.classList.contains("drag")) this.element.classList.add("drag");
 
-    // set the new values as the normal
-    // this.baseRotation.set(this.targetRotation.x, this.targetRotation.y)
-
     let newX = 0;
     let newY = 0;
 
@@ -505,6 +507,7 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
     const finalYRotation = parseInt(options.rotationY);
 
     const startingRotation = this.currRotation.clone();
+    const startingPan = this.currentPan.clone();
     const startingDistance = this.currentDistance;
 
     // figures out the best final rotation to avoid going through longest path
@@ -532,6 +535,22 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
             this.referenceCameraDistance
         );
 
+        this.currentPan.x = ripe.easing.easeInOutQuad(
+            pos,
+            startingPan.x,
+            this.referenceCameraTarget.x
+        );
+        this.currentPan.y = ripe.easing.easeInOutQuad(
+            pos,
+            startingPan.y,
+            this.referenceCameraTarget.y
+        );
+        this.currentPan.z = ripe.easing.easeInOutQuad(
+            pos,
+            startingPan.z,
+            this.referenceCameraTarget.z
+        );
+
         this.performSimpleRotation();
 
         if (pos < 1) {
@@ -539,6 +558,72 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
         } else {
             // update the target to match the current rotation
             this.targetRotation.copy(this.currRotation);
+            this.targetPan.copy(this.currentPan);
+            this.targetDistance = this.currentDistance;
+
+            this.element.classList.remove("animating");
+            this.element.classList.remove("no-drag");
+        }
+    };
+
+    requestAnimationFrame(transition);
+};
+
+/**
+ * The function to handle a rotation transition between views and/or positions.
+ *
+ * @param {Object} options Options used for the transition.
+ */
+ripe.CSRControls.prototype.recenterTransition = async function(targetPart) {
+    console.log(targetPart);
+    // creates a 3D box from the target object to
+    // be able to calculate it's the center
+    const box = new this.csr.library.Box3().setFromObject(targetPart);
+    const centerX = box.min.x + (box.max.x - box.min.x) / 2.0;
+    const centerY = box.min.y + (box.max.y - box.min.y) / 2.0;
+    const centerZ = box.min.z + (box.max.z - box.min.z) / 2.0;
+
+    // set the max distance to take into account how large
+    // the target object is
+    const maxElement = Math.max(
+        box.max.x - box.min.x,
+        box.max.y - box.min.y,
+        box.max.z - box.min.z
+    );
+    // take FOV into account, the higher it is, the
+    // less distance it needs to be
+
+    const endDistance = maxElement / 2.3 / Math.sin(this.deg2rad(this.csr.cameraFOV / 2));
+    const startDistance = this.currentDistance;
+
+    const startingPan = this.currentPan.clone();
+
+    this.element.classList.add("no-drag");
+    this.element.classList.add("animating");
+
+    let pos = 0;
+    let startTime = 0;
+    const duration = 500;
+
+    const transition = time => {
+        startTime = startTime === 0 ? time : startTime;
+        pos = (time - startTime) / duration;
+
+        this.currentPan.x = ripe.easing.easeInOutQuad(pos, startingPan.x, centerX);
+        this.currentPan.y = ripe.easing.easeInOutQuad(pos, startingPan.y, centerY);
+        this.currentPan.z = ripe.easing.easeInOutQuad(pos, startingPan.z, centerZ);
+
+        this.currentDistance = ripe.easing.easeInOutQuad(pos, startDistance, endDistance);
+
+        // rotate only the pan
+        this.performSimpleRotation();
+
+        if (pos < 1) {
+            requestAnimationFrame(transition);
+        } else {
+            // update the target to match the current rotation
+            this.targetDistance = this.currentDistance;
+            this.targetPan.copy(this.currentPan);
             this.element.classList.remove("animating");
             this.element.classList.remove("no-drag");
         }

@@ -119,9 +119,6 @@ ripe.CSR.prototype._registerHandlers = function() {
     const area = this.element.querySelector(".area");
 
     area.addEventListener("mousedown", function(event) {
-        const animating = self.element.classList.contains("animating");
-        if (animating) return;
-
         self.down = true;
     });
 
@@ -717,6 +714,9 @@ ripe.CSR.prototype._setupAAPass = async function() {
         self.composer.multisampling = samples;
 
         if (self.debug) self.gui.setupAA(self.postProcessLib, aaEffect);
+
+        // update image to include antialiasing
+        self.needsRenderUpdate = true;
     });
 };
 
@@ -1028,24 +1028,26 @@ ripe.CSR.prototype.rotate = function(options) {
         this.cameraTarget = options.target;
     }
 
-    const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
-    this.camera.position.x =
-        this.cameraTarget.x + distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
-    this.camera.position.y =
-        this.cameraTarget.y + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
-    this.camera.position.z =
-        this.cameraTarget.z + distance * Math.cos((Math.PI / 180) * options.rotationX);
+    if (options.rotationX && options.rotationY) {
+        const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
+        this.camera.position.x =
+            this.cameraTarget.x + distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
+        this.camera.position.y =
+            this.cameraTarget.y + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
+        this.camera.position.z =
+            this.cameraTarget.z + distance * Math.cos((Math.PI / 180) * options.rotationX);
 
-    this.needsRenderUpdate = true;
+        // update position and view information
+        const newView = this._rotationToView(options.rotationY);
+        const newPosition = this._rotationToPosition(options.rotationX);
+
+        // update configurator view and position variables
+        this.configurator.updateViewPosition(newView, newPosition);
+    }
 
     this.camera.lookAt(this.cameraTarget);
-    
-    // update position and view information
-    const newView = this._rotationToView(options.rotationY);
-    const newPosition = this._rotationToPosition(options.rotationX);
 
-    // update configurator view and position variables
-    this.configurator.updateViewPosition(newView, newPosition);
+    this.needsRenderUpdate = true;
 };
 
 /**
@@ -1230,8 +1232,10 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
  *
  * @param {Event} event The mouse event that is going to be used
  * as the basis for the casting of the ray.
+ * @param {*} operation The type of operation that will be triggered
+ * by the raycast, can be "highlight" or "recenter"
  */
-ripe.CSR.prototype._attemptRaycast = function(event) {
+ripe.CSR.prototype._attemptRaycast = function(event, operation = "highlight") {
     // gathers the status for a series of class value of the
     // configurator main DOM element
     const animating = this.element.classList.contains("animating");
@@ -1239,7 +1243,8 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
 
     // prevents raycasting can be used to improve performance, as this operation
     // can be done every frame
-    if (animating || dragging) return;
+    // recenter can ignore dragging
+    if (animating || (dragging && operation === "highlight")) return;
 
     // runs a series of pre-validation for the execution of the raycasting
     // if any of them fails returns immediately (not possible to ray cast)
@@ -1270,7 +1275,8 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
 
     // did not find any intersection, return
     if (!currentIntersection) {
-        this.lowlight();
+        if (operation === "highlight") this.lowlight();
+
         return;
     }
 
@@ -1280,22 +1286,26 @@ ripe.CSR.prototype._attemptRaycast = function(event) {
     const isSame =
         this.intersectedPart &&
         currentIntersection.material.uuid === this.intersectedPart.material.uuid;
-    if (isSame) return;
+
+    // this operation only makes sense if we're highlighting
+    if (isSame && operation === "highlight") return;
 
     // "lowlights" all of the parts and highlights the one that
     // has been selected, only if the material to be highlighted
     // is different from the previous one, prevents unnecessary renders
-    if (
-        !this.intersectedPart ||
-        currentIntersection.material.uuid !== this.intersectedPart.material.uuid
-    ) {
+    if (operation === "highlight") {
+        if (!this.intersectedPart) return;
+        if (currentIntersection.material.uuid !== this.intersectedPart.material.uuid) return;
+
         this.lowlight();
         this.highlight(currentIntersection);
-    }
 
-    // "saves" the currently selected part so that it can be
-    // latter used to detect duplicated highlighting (performance)
-    this.intersectedPart = currentIntersection;
+        // "saves" the currently selected part so that it can be
+        // latter used to detect duplicated highlighting (performance)
+        this.intersectedPart = currentIntersection;
+    } else if (operation === "recenter") {
+        this.controls.recenterTransition(currentIntersection);
+    }
 };
 
 /**
