@@ -104,9 +104,10 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
         for (const animation of this.modelConfig.animations) {
             await this._loadAsset(animation, "animation");
         }
-    } else {
-        this._storePartsColors();
     }
+
+    // Updates the base colors for all the materials currently being used
+    this._storePartsColors();
 
     this.csr.initialize();
 };

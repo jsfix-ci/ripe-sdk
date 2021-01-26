@@ -63,7 +63,7 @@ ripe.CSRControls = function(csr, configurator, element, options) {
     const initialXRot = this.positionToRotation(startingPosition);
 
     this.targetRotation = new this.csr.library.Vector2(initialXRot, 0);
-    this.currRotation = this.targetRotation.clone();
+    this.currentRotation = this.targetRotation.clone();
 
     // camera target and panning variables
     this.targetPan = this.referenceCameraTarget.clone();
@@ -151,7 +151,7 @@ ripe.CSRControls.prototype.updateOptions = async function(options) {
 
     const startingPosition =
         options.position === undefined ? this.element.position : options.position;
-    this.currRotation.x = this.positionToRotation(startingPosition);
+    this.currentRotation.x = this.positionToRotation(startingPosition);
     this._setControlsOptions(options);
 };
 
@@ -289,8 +289,8 @@ ripe.CSRControls.prototype._registerHandlers = function() {
 
 ripe.CSRControls.prototype.performSimpleRotation = function() {
     const options = {
-        rotationX: this.currRotation.x,
-        rotationY: this.currRotation.y,
+        rotationX: this.currentRotation.x,
+        rotationY: this.currentRotation.y,
         distance: this.currentDistance,
         target: this.currentPan
     };
@@ -304,11 +304,11 @@ ripe.CSRControls.prototype.createLoop = function() {
         // are disabled
         if (!this.smoothControls) {
             this.currentDistance = this.targetDistance;
-            this.currRotation.x = this.validHorizontalAngle(
-                this.targetRotation.x + this.currRotation.x
+            this.currentRotation.x = this.validHorizontalAngle(
+                this.targetRotation.x + this.currentRotation.x
             );
-            this.currRotation.y = Math.min(
-                Math.max(this.minimumVerticalRot, this.currRotation.y + this.targetRotation.y),
+            this.currentRotation.y = Math.min(
+                Math.max(this.minimumVerticalRot, this.currentRotation.y + this.targetRotation.y),
                 this.maximumVerticalRot
             );
 
@@ -365,20 +365,20 @@ ripe.CSRControls.prototype.updateDistance = function() {
 };
 
 ripe.CSRControls.prototype.updateRotation = function() {
-    const xDiff = this.targetRotation.x - this.currRotation.x;
-    const yDiff = this.targetRotation.y - this.currRotation.y;
+    const xDiff = this.targetRotation.x - this.currentRotation.x;
+    const yDiff = this.targetRotation.y - this.currentRotation.y;
 
     const continuesRotating = Math.abs(xDiff) > 0.01 || Math.abs(yDiff) > 0.01;
 
     if (continuesRotating) {
-        this.currRotation.x += xDiff / 5;
+        this.currentRotation.x += xDiff / 5;
 
-        this.currRotation.y = this.validVericalAngle(this.currRotation.y + yDiff / 5);
+        this.currentRotation.y = this.validVericalAngle(this.currentRotation.y + yDiff / 5);
     } else {
         this.isRotating = false;
         // reset angles to normal bounds
-        this.currRotation.x = this.validHorizontalAngle(this.currRotation.x);
-        this.currRotation.y = this.validVericalAngle(this.currRotation.y);
+        this.currentRotation.x = this.validHorizontalAngle(this.currentRotation.x);
+        this.currentRotation.y = this.validVericalAngle(this.currentRotation.y);
 
         this.targetRotation.x = this.validHorizontalAngle(this.targetRotation.x);
         this.targetRotation.y = this.validVericalAngle(this.targetRotation.y);
@@ -409,8 +409,8 @@ ripe.CSRControls.prototype._parsePan = function(event) {
     const newX = (event.x - this._previousPanEvent.x) / 100;
     const newY = (event.y - this._previousPanEvent.y) / 100;
 
-    const radX = this.currRotation.x * (Math.PI / 180);
-    const radY = this.currRotation.y * (Math.PI / 180);
+    const radX = this.currentRotation.x * (Math.PI / 180);
+    const radY = this.currentRotation.y * (Math.PI / 180);
 
     //            event.x impact                                event.x impact when with tilted camera                  event.y impact when with tilted camera
     const xDiff =
@@ -460,13 +460,13 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
  * @param {Object} options If specified, update the base and current angles based on the options.
  */
 ripe.CSRControls.prototype._updateAngles = function(options = {}) {
-    const newX = options.rotationX === undefined ? this.currRotation.x : options.rotationX;
-    const newY = options.rotationY === undefined ? this.currRotation.y : options.rotationY;
+    const newX = options.rotationX === undefined ? this.currentRotation.x : options.rotationX;
+    const newY = options.rotationY === undefined ? this.currentRotation.y : options.rotationY;
 
-    this.currRotation.x = this._validatedAngle(newX);
+    this.currentRotation.x = this._validatedAngle(newX);
     this.mouseDeltaX = 0;
 
-    this.currRotation.y = newY;
+    this.currentRotation.y = newY;
     this.mouseDeltaY = 0;
 };
 
@@ -506,12 +506,12 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
     let finalXRotation = parseInt(options.rotationX);
     const finalYRotation = parseInt(options.rotationY);
 
-    const startingRotation = this.currRotation.clone();
+    const startingRotation = this.currentRotation.clone();
     const startingPan = this.currentPan.clone();
     const startingDistance = this.currentDistance;
 
     // figures out the best final rotation to avoid going through longest path
-    const diff = finalXRotation - this.currRotation.x;
+    const diff = finalXRotation - this.currentRotation.x;
     if (diff < -180) finalXRotation += 360;
     if (diff > 180) finalXRotation -= 360;
 
@@ -526,8 +526,8 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
         startTime = startTime === 0 ? time : startTime;
         pos = (time - startTime) / duration;
 
-        this.currRotation.x = ripe.easing.easeInOutQuad(pos, startingRotation.x, finalXRotation);
-        this.currRotation.y = ripe.easing.easeInOutQuad(pos, startingRotation.y, finalYRotation);
+        this.currentRotation.x = ripe.easing.easeInOutQuad(pos, startingRotation.x, finalXRotation);
+        this.currentRotation.y = ripe.easing.easeInOutQuad(pos, startingRotation.y, finalYRotation);
 
         this.currentDistance = ripe.easing.easeInOutQuad(
             pos,
@@ -557,7 +557,7 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
             requestAnimationFrame(transition);
         } else {
             // update the target to match the current rotation
-            this.targetRotation.copy(this.currRotation);
+            this.targetRotation.copy(this.currentRotation);
             this.targetPan.copy(this.currentPan);
             this.targetDistance = this.currentDistance;
 
@@ -575,7 +575,6 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
  * @param {Object} options Options used for the transition.
  */
 ripe.CSRControls.prototype.recenterTransition = async function(targetPart) {
-    console.log(targetPart);
     // creates a 3D box from the target object to
     // be able to calculate it's the center
     const box = new this.csr.library.Box3().setFromObject(targetPart);

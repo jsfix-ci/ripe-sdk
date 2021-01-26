@@ -117,7 +117,7 @@ ripe.ConfiguratorCSR.prototype.init = function() {
 ripe.ConfiguratorCSR.prototype.deinit = async function() {
     await this.cancel();
 
-    await this.disposeResources();
+    await this.csr.disposeResources();
 
     while (this.element.firstChild) {
         this.element.removeChild(this.element.firstChild);
@@ -135,16 +135,6 @@ ripe.ConfiguratorCSR.prototype.deinit = async function() {
     this._observer = null;
 
     ripe.Visual.prototype.deinit.call(this);
-};
-
-/**
- * Called when de-initializing the Configurator, begins the disposal of
- * all the stored resources.
- */
-ripe.ConfiguratorCSR.prototype.disposeResources = async function() {
-    await this.renderer.disposeResources();
-    await this.initials.disposeResources();
-    await this.assetManager.disposeResources();
 };
 
 /**

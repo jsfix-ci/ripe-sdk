@@ -748,7 +748,9 @@ ripe.CSR.prototype.updateWireframe = function(value) {
  * or add them.
  * @param {Array} meshes The target meshes that will be modified.
  */
-ripe.CSR.prototype.updateInitials = function(operation, meshes) {
+ripe.CSR.prototype.updateInitials = function(operation) {
+    const meshes = this.initials.textMeshes;
+
     for (let i = 0; i < meshes.length; i++) {
         if (operation === "remove") {
             this.scene.remove(meshes[i]);
@@ -758,6 +760,8 @@ ripe.CSR.prototype.updateInitials = function(operation, meshes) {
             this.scene.add(meshes[i]);
         }
     }
+
+    await this.initials.update();
 };
 
 /**
@@ -943,6 +947,8 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
         }
     } else if (type === "rotation") {
         this.rotate(options);
+        this.controls.targetRotation.set(options.rotationX, options.rotationY);
+        this.controls.currentRotation.set(options.rotationX, options.rotationY);
     }
 
     // updates the wireframe to match between cross-fades
