@@ -64,11 +64,8 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.shadowBias = 0;
     this.exposure = 1.5;
     this.radius = 1;
-    this.postProcessing = options.postProcessing === undefined ? true : options.postProcessing;
 
     this.usesScene = options.assets.scene !== undefined;
-    this.postProcessLib = options.postProcessingLibrary;
-    this._setPostProcessOptions(options);
 
     this.partsMap = options.partsMap || {};
 
@@ -86,6 +83,11 @@ ripe.CSR = function(configurator, owner, element, options) {
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
 
     this.gui = new ripe.CSRGui(this, options);
+    this.usesPostProcessing = options.postProcessing === undefined ? true : options.postProcessing;
+
+    if (this.usesPostProcessing) {
+        this.postprocessing = new ripe.CSRPostProcess(this, options);
+    }
 
     this.scene = new this.library.Scene();
 
@@ -172,6 +174,7 @@ ripe.CSR.prototype.updateOptions = async function(options) {
     this.assetManager.updateOptions(options);
     this.controls.updateOptions(options);
     this.initials.updateOptions(options);
+    this.postprocessing.updateOptions(options);
 
     this._setCameraOptions(options);
     this._setRenderOptions(options);
@@ -179,12 +182,6 @@ ripe.CSR.prototype.updateOptions = async function(options) {
     this.width = options.width === undefined ? this.width : options.width;
     this.element = options.element === undefined ? this.element : options.element;
     this.library = options.library === undefined ? this.library : options.library;
-    this.postProcessLib =
-        options.postProcessingLibrary === undefined
-            ? this.postProcessLib
-            : options.postProcessingLibrary;
-    this.postProcessing =
-        options.postProcessing === undefined ? this.postProcessing : options.postProcessing;
     this.viewAnimate = options.viewAnimate === undefined ? this.viewAnimate : options.viewAnimate;
     this.positionAnimate =
         options.positionAnimate === undefined ? this.positionAnimate : options.positionAnimate;
@@ -254,24 +251,6 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
         renderOptions.animation === undefined ? this.animation : renderOptions.animation;
 };
 
-ripe.CSR.prototype._setPostProcessOptions = function(options = {}) {
-    if (!options.postProcess) return;
-
-    const postProcOptions = options.postProcess;
-
-    this.exposure =
-        postProcOptions.exposure === undefined ? this.exposure : postProcOptions.exposure;
-    this.shadowBias =
-        postProcOptions.shadowBias === undefined ? this.shadowBias : postProcOptions.shadowBias;
-    this.radius = postProcOptions.radius === undefined ? this.radius : postProcOptions.radius;
-
-    if (postProcOptions.bloom) this.bloomOptions = postProcOptions.bloom;
-    if (postProcOptions.antialiasing) this.aaOptions = postProcOptions.antialiasing;
-    if (postProcOptions.ambientOcclusion) this.aoOptions = postProcOptions.ambientOcclusion;
-};
-
-// Initialization
-
 /**
  * Called from the Configurator instance to initialize all aspects related to rendering,
  * such as creating the scene, adding the loaded meshes, etc.
@@ -292,7 +271,7 @@ ripe.CSR.prototype.initialize = async function() {
     // in case post processing is required runs the setup process
     // for it, this may take several time to finish and may use
     // web artifact like web workers for its execution
-    if (this.postProcessing) await this._setupPostProcessing();
+    if (this.usesPostProcessing) await this.postprocessing.setup();
 
     if (this.playsAnimation) {
         // in case were meant to execute an animation bt there's none
@@ -360,7 +339,10 @@ ripe.CSR.prototype._createLoops = function() {
 
     const renderLoop = () => {
         if (this.needsRenderUpdate && !this.forceStopRender) {
-            this.composer.render();
+            if (this.usesPostProcessing && this.postprocessing.composer)
+                this.postprocessing.composer.render();
+            else 
+                this.renderer.render(this.scene, this.camera);
         }
 
         this.needsRenderUpdate = false;
@@ -556,9 +538,6 @@ ripe.CSR.prototype._initializeRenderer = function() {
 
     this.previousSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
     this.nextSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
-
-    this.composer = new this.postProcessLib.EffectComposer(this.renderer);
-    this.composer.addPass(new this.postProcessLib.RenderPass(this.scene, this.camera));
 };
 
 /**
@@ -632,101 +611,6 @@ ripe.CSR.prototype.disposeResources = async function() {
 
     await this.assetManager.disposeResources();
 };
-
-// Postprocessing
-
-/**
- * Creates the render passes and adds them to the effect composer.
- */
-ripe.CSR.prototype._setupPostProcessing = async function() {
-    await this._setupBloomPass();
-    await this._setupAAPass();
-    await this._setupAOPass();
-};
-
-/**
- * @ignore
- */
-ripe.CSR.prototype._setupBloomPass = async function() {
-    const blendFunction = this.postProcessLib.BlendFunction.SCREEN;
-    const kernelSize = this.postProcessLib.KernelSize.MEDIUM;
-    const luminanceSmoothing = 0.075;
-    const bloomHeight = 480;
-
-    const bloomOptions = {
-        blendFunction: blendFunction,
-        kernelSize: kernelSize,
-        luminanceSmoothing: luminanceSmoothing,
-        height: bloomHeight
-    };
-
-    const bloomEffect = new this.postProcessLib.BloomEffect(bloomOptions);
-
-    bloomEffect.luminanceMaterial.threshold =
-        this.bloomOptions.threshold === undefined ? 0.9 : this.bloomOptions.threshold;
-    bloomEffect.intensity =
-        this.bloomOptions.intensity === undefined ? 0.5 : this.bloomOptions.intensity;
-    bloomEffect.blendMode.opacity.value =
-        this.bloomOptions.opacity === undefined ? 0.7 : this.bloomOptions.opacity;
-
-    this.composer.addPass(new this.postProcessLib.EffectPass(this.camera, bloomEffect));
-
-    if (this.debug) this.gui.setupBloom(bloomEffect);
-};
-
-/**
- * @ignore
- */
-ripe.CSR.prototype._setupAAPass = async function() {
-    const loadingManager = new this.library.LoadingManager();
-    const smaaImageLoader = new this.postProcessLib.SMAAImageLoader(loadingManager);
-
-    const self = this;
-
-    smaaImageLoader.load(([search, area]) => {
-        const aaEffect = new this.postProcessLib.SMAAEffect(
-            search,
-            area,
-            self.postProcessLib.SMAAPreset.HIGH,
-            self.postProcessLib.EdgeDetectionMode.COLOR
-        );
-
-        // the following variables are used in
-        // the debug GUI (for the CSR)
-        const edgesTextureEffect = new this.postProcessLib.TextureEffect({
-            blendFunction: self.postProcessLib.BlendFunction.SKIP,
-            texture: aaEffect.renderTargetEdges.texture
-        });
-
-        const weightsTextureEffect = new this.postProcessLib.TextureEffect({
-            blendFunction: self.postProcessLib.BlendFunction.SKIP,
-            texture: aaEffect.renderTargetWeights.texture
-        });
-
-        const effectPass = new this.postProcessLib.EffectPass(
-            self.camera,
-            aaEffect,
-            edgesTextureEffect,
-            weightsTextureEffect
-        );
-
-        self.composer.addPass(effectPass);
-
-        const context = self.renderer.getContext();
-        const samples = Math.max(4, context.getParameter(context.MAX_SAMPLES));
-        self.composer.multisampling = samples;
-
-        if (self.debug) self.gui.setupAA(self.postProcessLib, aaEffect);
-
-        // update image to include antialiasing
-        self.needsRenderUpdate = true;
-    });
-};
-
-/**
- * @ignore
- */
-ripe.CSR.prototype._setupAOPass = async function() {};
 
 ripe.CSR.prototype.updateWireframe = function(value) {
     Object.values((this.assetManager && this.assetManager.meshes) || {}).forEach(mesh => {
