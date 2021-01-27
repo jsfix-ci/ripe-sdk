@@ -104,10 +104,11 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
         for (const animation of this.modelConfig.animations) {
             await this._loadAsset(animation, "animation");
         }
+    } else {
+        // Updates the base colors for all the materials currently being used,
+        // since setMaterials is never run
+        this._storePartsColors();
     }
-
-    // Updates the base colors for all the materials currently being used
-    this._storePartsColors();
 
     this.csr.initialize();
 };
@@ -194,6 +195,7 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
+                    child.material.envMapIntensity = 0;
                 }
             });
 

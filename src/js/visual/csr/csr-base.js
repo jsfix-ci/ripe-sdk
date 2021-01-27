@@ -550,7 +550,8 @@ ripe.CSR.prototype._initializeRenderer = function() {
     const renderTargetParams = {
         minFilter: this.library.LinearFilter,
         magFilter: this.library.LinearFilter,
-        format: this.library.RGBAFormat
+        format: this.library.RGBAFormat,
+        encoding: this.library.sRGBEncoding
     };
 
     this.previousSceneFBO = new this.library.WebGLRenderTarget(width, height, renderTargetParams);
@@ -597,8 +598,8 @@ ripe.CSR.prototype._initializeCameras = function() {
 };
 
 /**
- * Function to dispose all resources created by the renderer,
- * including all the elements belonging to the scene.
+ * Called when de-initializing the Configurator, begins the disposal of
+ * all the stored resources.
  */
 ripe.CSR.prototype.disposeResources = async function() {
     this.renderer.renderLists.dispose();
@@ -628,6 +629,8 @@ ripe.CSR.prototype.disposeResources = async function() {
     this.nextSceneFBO.dispose();
 
     await this.assetManager.disposeScene(this.scene);
+
+    await this.assetManager.disposeResources();
 };
 
 // Postprocessing
@@ -748,7 +751,7 @@ ripe.CSR.prototype.updateWireframe = function(value) {
  * or add them.
  * @param {Array} meshes The target meshes that will be modified.
  */
-ripe.CSR.prototype.updateInitials = function(operation) {
+ripe.CSR.prototype.updateInitials = async function(operation) {
     const meshes = this.initials.textMeshes;
 
     for (let i = 0; i < meshes.length; i++) {
@@ -858,8 +861,6 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
     let pos = 0;
     let startTime = 0;
 
-    console.log("Changing highlight for " + part.name);
-
     const changeHighlightTransition = time => {
         startTime = startTime === 0 ? time : startTime;
 
@@ -959,7 +960,7 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
 
-    // resets renderer
+    // resets renderer targets
     this.renderer.setRenderTarget(null);
     this.renderer.clear();
 
@@ -989,6 +990,9 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
             this.previousSceneFBO.texture.dispose();
             this.nextSceneFBO.texture.dispose();
 
+            this.assetManager.disposeMesh(quad);
+            quadGeometry.dispose();
+
             if (this.element.classList.contains("stop-crossfade")) {
                 this.element.classList.remove("stop-crossfade");
             }
@@ -997,8 +1001,8 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
 
             this.assetManager.disposeMesh(quad);
 
-            // renders scene with composer
             this.forceStopRender = false;
+            this.needsRenderUpdate = true;
 
             return;
         }
@@ -1080,7 +1084,8 @@ ripe.CSR.prototype.changeFrameRotation = async function(frame) {
     const nextRotationY = this.controls.viewToRotation(nextView);
     const options = {
         rotationX: nextRotationX,
-        rotationY: nextRotationY
+        rotationY: nextRotationY,
+        distance: this.initialDistance
     };
 
     // checks to see if transition is required, and delegates
@@ -1135,17 +1140,14 @@ ripe.CSR.prototype._rotationToPosition = function(rotationX) {
  * @returns {String} The normalized view value for the given Y rotation.
  */
 ripe.CSR.prototype._rotationToView = function(rotationY) {
-    const verticalThreshold = this.element.dataset.verticalThreshold || 85;
-    // if the drag was vertical then alters the
-    // view if it is supported by the product
-    const view = this.element.dataset.view;
+    const verticalThreshold = this.element.dataset.verticalThreshold || 80;
 
-    if (rotationY > verticalThreshold) {
-        return view === "top" ? "side" : "bottom";
+    if (rotationY >= verticalThreshold) {
+        return "top";
     }
-    if (rotationY < verticalThreshold * -1) {
-        return view === "bottom" ? "side" : "top";
-    } else return view;
+    if (rotationY <= verticalThreshold * -1) {
+        return "bottom";
+    } else return "side";
 };
 
 // Animations
@@ -1298,8 +1300,11 @@ ripe.CSR.prototype._attemptRaycast = function(event, operation = "highlight") {
     // has been selected, only if the material to be highlighted
     // is different from the previous one, prevents unnecessary renders
     if (operation === "highlight") {
-        if (!this.intersectedPart) return;
-        if (currentIntersection.material.uuid !== this.intersectedPart.material.uuid) return;
+        if (
+            this.intersectedPart &&
+            currentIntersection.material.uuid === this.intersectedPart.material.uuid
+        )
+            { return; }
 
         this.lowlight();
         this.highlight(currentIntersection);
