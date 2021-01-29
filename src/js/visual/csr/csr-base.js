@@ -271,7 +271,9 @@ ripe.CSR.prototype.initialize = async function() {
     // in case post processing is required runs the setup process
     // for it, this may take several time to finish and may use
     // web artifact like web workers for its execution
-    if (this.usesPostProcessing) await this.postprocessing.setup();
+    if (this.usesPostProcessing) {
+        await this.postprocessing.setup(this.scene, this.camera, this.renderer);
+    }
 
     if (this.playsAnimation) {
         // in case were meant to execute an animation bt there's none
@@ -339,10 +341,9 @@ ripe.CSR.prototype._createLoops = function() {
 
     const renderLoop = () => {
         if (this.needsRenderUpdate && !this.forceStopRender) {
-            if (this.usesPostProcessing && this.postprocessing.composer)
+            if (this.usesPostProcessing && this.postprocessing.composer) {
                 this.postprocessing.composer.render();
-            else 
-                this.renderer.render(this.scene, this.camera);
+            } else this.renderer.render(this.scene, this.camera);
         }
 
         this.needsRenderUpdate = false;
@@ -502,10 +503,9 @@ ripe.CSR.prototype._initializeRenderer = function() {
     // creates the renderer using the "default" WebGL approach
     // notice that the shadow map is enabled
     this.renderer = new this.library.WebGLRenderer({
-        logarithmicDepthBuffer: true,
         antialias: false,
         stencil: false,
-        depth: true,
+        depth: false,
         alpha: true,
         physicallyCorrectLights: true
     });
@@ -548,7 +548,7 @@ ripe.CSR.prototype._initializeCameras = function() {
     const width = this.element.getBoundingClientRect().width;
     const height = this.element.getBoundingClientRect().height;
 
-    this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 1000);
+    this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 200);
     this.camera.position.set(0, this.cameraHeight, this.initialDistance);
 
     if (this.element.dataset.view === "side") {
@@ -1187,8 +1187,9 @@ ripe.CSR.prototype._attemptRaycast = function(event, operation = "highlight") {
         if (
             this.intersectedPart &&
             currentIntersection.material.uuid === this.intersectedPart.material.uuid
-        )
-            { return; }
+        ) {
+            return;
+        }
 
         this.lowlight();
         this.highlight(currentIntersection);

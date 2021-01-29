@@ -56,7 +56,30 @@ ripe.CSRGui.prototype.setup = function() {
         this.csr.needsRenderUpdate = true;
     };
 
-    const folder = this.gui.addFolder("Render Settings");
+    let folder = this.gui.addFolder("Camera Settings");
+    folder
+        .add(this.csr.camera, "near")
+        .name("Near Plane")
+        .min(0.1)
+        .max(100)
+        .step(0.1)
+        .onChange(value => {
+            self.csr.camera.near = value;
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folder
+        .add(this.csr.camera, "far")
+        .name("Far Plane")
+        .min(0.01)
+        .max(1000)
+        .step(1)
+        .onChange(value => {
+            self.csr.camera.far = value;
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folder = this.gui.addFolder("Render Settings");
     folder
         .add(this.csr.renderer, "toneMappingExposure", 0.0, 4.0)
         .name("Exposure")
@@ -66,7 +89,6 @@ ripe.CSRGui.prototype.setup = function() {
 
     // if there are no lights, exit
     if (!this.csr.keyLight) {
-        folder.open();
         return;
     }
 
@@ -91,7 +113,6 @@ ripe.CSRGui.prototype.setup = function() {
             self.csr.updateWireframe(value);
             self.csr.needsRenderUpdate = true;
         });
-    folder.open();
 };
 
 ripe.CSRGui.prototype.setupBloom = function(bloomEffect) {
@@ -124,8 +145,6 @@ ripe.CSRGui.prototype.setupBloom = function(bloomEffect) {
             bloomEffect.blendMode.opacity.value = value;
             self.csr.needsRenderUpdate = true;
         });
-
-    folderBloom.open();
 };
 
 ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
@@ -249,6 +268,190 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
         aaEffect.blendMode.setBlendFunction(Number(params.smaa["blend mode"]));
         self.csr.needsRenderUpdate = true;
     });
+};
 
-    folderAA.open();
+/**
+ *  GUI configuration for the Screen-Space Ambient Occlusion pass.
+ * 
+ * @param {*} ssaoEffect The effect itself.
+ * @param {*} depthDownsamplingPass The downsampling pass for the depth buffer.
+ * @param {*} library The postprocess library.
+ */
+ripe.CSRGui.prototype.setupSSAO = function(
+    ssaoEffect,
+    depthDownsamplingPass,
+    library
+) {
+    const self = this;
+
+    const folderSSAO = this.gui.addFolder("SSAO Pass");
+    const uniforms = ssaoEffect.ssaoMaterial.uniforms;
+
+   
+    const blendMode = ssaoEffect.blendMode;
+
+    const params = {
+        distance: {
+            threshold: uniforms.distanceCutoff.value.x,
+            falloff: uniforms.distanceCutoff.value.y - uniforms.distanceCutoff.value.x
+        },
+        proximity: {
+            threshold: uniforms.proximityCutoff.value.x,
+            falloff: uniforms.proximityCutoff.value.y - uniforms.proximityCutoff.value.x
+        },
+        upsampling: {
+            enabled: ssaoEffect.defines.has("DEPTH_AWARE_UPSAMPLING"),
+            threshold: Number(ssaoEffect.defines.get("THRESHOLD"))
+        },
+        "lum influence": ssaoEffect.uniforms.get("luminanceInfluence").value,
+        intensity: uniforms.intensity.value,
+        bias: uniforms.bias.value,
+        fade: uniforms.fade.value,
+        resolution: ssaoEffect.resolution.scale,
+        color: 0x000000,
+        opacity: blendMode.opacity.value,
+        "blend mode": blendMode.blendFunction
+    };
+
+    folderSSAO
+        .add(ssaoEffect, "samples")
+        .min(1)
+        .max(32)
+        .step(1)
+        .onChange(() => {
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(ssaoEffect, "rings")
+        .min(1)
+        .max(16)
+        .step(1)
+        .onChange(() => {
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(ssaoEffect, "radius")
+        .min(1e-6)
+        .max(1.0)
+        .step(0.001)
+        .onChange(() => {
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(params, "resolution")
+        .min(0.25)
+        .max(1.0)
+        .step(0.25)
+        .onChange(() => {
+            ssaoEffect.resolution.scale = params.resolution;
+            depthDownsamplingPass.resolution.scale = params.resolution;
+            self.csr.needsRenderUpdate = true;
+        });
+
+
+    f = folderSSAO.addFolder("Distance Cutoff");
+
+    f.add(params.distance, "threshold")
+        .min(0.0)
+        .max(1.0)
+        .step(0.0001)
+        .onChange(() => {
+            ssaoEffect.setDistanceCutoff(params.distance.threshold, params.distance.falloff);
+            self.csr.needsRenderUpdate = true;
+        });
+
+    f.add(params.distance, "falloff")
+        .min(0.0)
+        .max(1.0)
+        .step(0.0001)
+        .onChange(() => {
+            ssaoEffect.setDistanceCutoff(params.distance.threshold, params.distance.falloff);
+            self.csr.needsRenderUpdate = true;
+        });
+
+    f = folderSSAO.addFolder("Proximity Cutoff");
+
+    f.add(params.proximity, "threshold")
+        .min(0.0)
+        .max(0.01)
+        .step(0.0001)
+        .onChange(() => {
+            ssaoEffect.setProximityCutoff(params.proximity.threshold, params.proximity.falloff);
+            self.csr.needsRenderUpdate = true;
+        });
+
+    f.add(params.proximity, "falloff")
+        .min(0.0)
+        .max(0.01)
+        .step(0.0001)
+        .onChange(() => {
+            ssaoEffect.setProximityCutoff(params.proximity.threshold, params.proximity.falloff);
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(params, "bias")
+        .min(0.0)
+        .max(1.0)
+        .step(0.001)
+        .onChange(() => {
+            uniforms.bias.value = params.bias;
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(params, "fade")
+        .min(0.0)
+        .max(1.0)
+        .step(0.001)
+        .onChange(() => {
+            uniforms.fade.value = params.fade;
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(params, "lum influence")
+        .min(0.0)
+        .max(1.0)
+        .step(0.001)
+        .onChange(() => {
+            ssaoEffect.uniforms.get("luminanceInfluence").value = params["lum influence"];
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO
+        .add(params, "intensity")
+        .min(1.0)
+        .max(4.0)
+        .step(0.01)
+        .onChange(() => {
+            uniforms.intensity.value = params.intensity;
+            self.csr.needsRenderUpdate = true;
+        });
+
+    const ssaoColor = new this.csr.library.Color(0, 0, 0);
+
+    folderSSAO.addColor(params, "color").onChange(() => {
+        ssaoEffect.color =
+            params.color === 0x000000 ? null : ssaoColor.setHex(params.color).convertSRGBToLinear();
+        self.csr.needsRenderUpdate = true;
+    });
+
+    folderSSAO
+        .add(params, "opacity")
+        .min(0.0)
+        .max(1.0)
+        .step(0.001)
+        .onChange(() => {
+            blendMode.opacity.value = params.opacity;
+            self.csr.needsRenderUpdate = true;
+        });
+
+    folderSSAO.add(params, "blend mode", library.BlendFunction).onChange(() => {
+        blendMode.setBlendFunction(Number(params["blend mode"]));
+        self.csr.needsRenderUpdate = true;
+    });
 };
