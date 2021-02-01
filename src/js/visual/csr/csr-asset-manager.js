@@ -387,21 +387,17 @@ ripe.CSRAssetManager.prototype.disposeResources = async function() {
  * element of the scene that matches the part's name.
  *
  * @param {String} part Name of the part to be analysed.
- * @param {Array} suffixes The sequence of suffixes that are going
- * to be tolerated at the end of the mesh name, so that for instance
- * a mesh name `side_part` is a valid mesh for the `side` part.
  * @returns {Mesh} The mesh for the requested name.
  */
-ripe.CSRAssetManager.prototype.getPart = function(partName, suffixes = ["", "_part"]) {
+ripe.CSRAssetManager.prototype.getPart = function(partName) {
     let part = null;
 
     // iterate through the children of the scene, and check if the
     // part is present in the scene structure
     this.raycastScene.traverse(child => {
-        for (const suffix of suffixes) {
-            const isValid = child.name === `${partName}${suffix}`;
-            if (isValid) part = child;
-        }
+        const isValid = child.name === partName;
+        
+        if (isValid) part = child;
     });
 
     // returns an invalid value as the default return value,
