@@ -272,22 +272,17 @@ ripe.CSRGui.prototype.setupAA = function(lib, aaEffect) {
 
 /**
  *  GUI configuration for the Screen-Space Ambient Occlusion pass.
- * 
+ *
  * @param {*} ssaoEffect The effect itself.
  * @param {*} depthDownsamplingPass The downsampling pass for the depth buffer.
  * @param {*} library The postprocess library.
  */
-ripe.CSRGui.prototype.setupSSAO = function(
-    ssaoEffect,
-    depthDownsamplingPass,
-    library
-) {
+ripe.CSRGui.prototype.setupSSAO = function(ssaoEffect, depthDownsamplingPass, library) {
     const self = this;
 
     const folderSSAO = this.gui.addFolder("SSAO Pass");
     const uniforms = ssaoEffect.ssaoMaterial.uniforms;
 
-   
     const blendMode = ssaoEffect.blendMode;
 
     const params = {
@@ -351,8 +346,7 @@ ripe.CSRGui.prototype.setupSSAO = function(
             self.csr.needsRenderUpdate = true;
         });
 
-
-    f = folderSSAO.addFolder("Distance Cutoff");
+    let f = folderSSAO.addFolder("Distance Cutoff");
 
     f.add(params.distance, "threshold")
         .min(0.0)

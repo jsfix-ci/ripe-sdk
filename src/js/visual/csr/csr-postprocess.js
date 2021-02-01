@@ -53,6 +53,9 @@ ripe.CSRPostProcess.prototype.setup = async function(scene, camera, renderer) {
     await this._setupBloomPass(camera);
     await this._setupAAPass(camera, renderer);
     await this._setupAOPass(normalPass, camera);
+
+    // solve artefacts for Skinned Meshes
+    this.library.OverrideMaterialManager.workaroundEnabled = true;
 };
 
 ripe.CSRPostProcess.prototype._setPostProcessOptions = function(options = {}) {
@@ -167,7 +170,7 @@ ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, camera) 
         : null;
 
     const baseConfig = {
-        blendFunction: this.library.BlendFunction.NORMAL,
+        blendFunction: this.library.BlendFunction.MULTIPLY,
         distanceScaling: false,
         depthAwareUpsampling: false,
         normalDepthBuffer,
@@ -195,11 +198,7 @@ ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, camera) 
     this.ssaoEffect = new this.library.SSAOEffect(camera, normalPass.texture, baseConfig);
 
     if (this.debug) {
-        this.csr.gui.setupSSAO(
-            this.ssaoEffect,
-            depthDownsamplingPass,
-            this.library
-        );
+        this.csr.gui.setupSSAO(this.ssaoEffect, depthDownsamplingPass, this.library);
     }
 
     if (this.composer.getRenderer().capabilities.isWebGL2) {
