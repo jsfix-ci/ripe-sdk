@@ -300,31 +300,27 @@ ripe.CSRControls.prototype.performSimpleRotation = function() {
 
 ripe.CSRControls.prototype.createLoop = function() {
     this.rotationLoop = () => {
+        // only run if any operation has happened
+        if (!this.isPanning && !this.isRotating && !this.isScrolling) return;
+
         // apply simple rotations and translations if smooth controls
         // are disabled
         if (!this.smoothControls) {
             this.currentDistance = this.targetDistance;
-            this.currentRotation.x = this.validHorizontalAngle(
-                this.targetRotation.x + this.currentRotation.x
-            );
-            this.currentRotation.y = Math.min(
-                Math.max(this.minimumVerticalRot, this.currentRotation.y + this.targetRotation.y),
-                this.maximumVerticalRot
-            );
+            this.currentRotation.copy(this.targetRotation);
+            this.currentPan.copy(this.targetPan);
 
-            // reset rotation
-            this.targetRotation.set(0, 0);
+            this.isPanning = false;
+            this.isRotating = false;
+            this.isScrolling = false;
 
             this.performSimpleRotation();
             return;
         }
 
-        // only run if any operation has happened
-        if (!this.isPanning && !this.isRotating && !this.isScrolling) return;
-
         if (this.isRotating) this.updateRotation();
 
-        if (this.isPanning) this.updatePan();
+        if (this.isPanning) this.updateTarget();
 
         if (this.isScrolling) this.updateDistance();
 
@@ -332,7 +328,7 @@ ripe.CSRControls.prototype.createLoop = function() {
     };
 };
 
-ripe.CSRControls.prototype.updatePan = function() {
+ripe.CSRControls.prototype.updateTarget = function() {
     const xDiff = this.targetPan.x - this.currentPan.x;
     const yDiff = this.targetPan.y - this.currentPan.y;
     const zDiff = this.targetPan.z - this.currentPan.z;
@@ -376,12 +372,11 @@ ripe.CSRControls.prototype.updateRotation = function() {
         this.currentRotation.y = this.validVericalAngle(this.currentRotation.y + yDiff / 5);
     } else {
         this.isRotating = false;
-        // reset angles to normal bounds
-        this.currentRotation.x = this.validHorizontalAngle(this.currentRotation.x);
-        this.currentRotation.y = this.validVericalAngle(this.currentRotation.y);
+        this.targetRotation.x = this.targetRotation.x % 360;
 
-        this.targetRotation.x = this.validHorizontalAngle(this.targetRotation.x);
-        this.targetRotation.y = this.validVericalAngle(this.targetRotation.y);
+        // reset angles to normal bounds
+        this.currentRotation.x = this.targetRotation.x;
+        this.currentRotation.y = this.targetRotation.y;
     }
 };
 
