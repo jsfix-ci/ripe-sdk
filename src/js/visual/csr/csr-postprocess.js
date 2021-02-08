@@ -43,16 +43,17 @@ ripe.CSRPostProcess.prototype.updateOptions = async function(options) {
 /**
  * Creates the render passes and adds them to the effect composer.
  */
-ripe.CSRPostProcess.prototype.setup = async function(scene, camera, renderer) {
-    this.composer = new this.library.EffectComposer(renderer);
-    this.composer.addPass(new this.library.RenderPass(scene, camera));
+ripe.CSRPostProcess.prototype.setup = async function(csr) {
+    this.composer = new this.library.EffectComposer(csr.renderer);
+    this.renderPass = new this.library.RenderPass(csr.scene, csr.camera);
 
-    const normalPass = new this.library.NormalPass(scene, camera);
-    this.composer.addPass(normalPass);
+    this.composer.addPass(this.renderPass);
 
-    await this._setupBloomPass(camera);
-    await this._setupAAPass(camera, renderer);
-    await this._setupAOPass(normalPass, camera);
+    await this._setupBloomPass(csr.camera);
+    await this._setupAAPass(csr.camera, csr.renderer);
+
+    const normalPass = new this.library.NormalPass(csr.scene, csr.camera);
+    await this._setupAOPass(normalPass, csr);
 
     // solve artefacts for Skinned Meshes
     this.library.OverrideMaterialManager.workaroundEnabled = true;
@@ -159,7 +160,7 @@ ripe.CSRPostProcess.prototype._setupAAPass = async function(camera, renderer) {
 /**
  * @ignore
  */
-ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, camera) {
+ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, csr) {
     const depthDownsamplingPass = new this.library.DepthDownsamplingPass({
         normalBuffer: normalPass.texture,
         resolutionScale: 1
@@ -182,9 +183,9 @@ ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, camera) 
         rangeFalloff: 0.0001, // with ~0.1 units of falloff.
         luminanceInfluence: 0.7,
         minRadiusScale: 0.1,
-        radius: 0.05,
-        intensity: 4,
-        bias: 0.025,
+        radius: 0.012,
+        intensity: 100,
+        bias: 0.0,
         fade: 0.01,
         color: null,
         resolutionScale: 1
@@ -195,17 +196,141 @@ ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, camera) 
         texture: depthDownsamplingPass.texture
     });
 
-    this.ssaoEffect = new this.library.SSAOEffect(camera, normalPass.texture, baseConfig);
-
-    if (this.debug) {
-        this.csr.gui.setupSSAO(this.ssaoEffect, depthDownsamplingPass, this.library);
-    }
+    this.ssaoEffect = new this.library.SSAOEffect(csr.camera, null, baseConfig);
 
     if (this.composer.getRenderer().capabilities.isWebGL2) {
         this.composer.addPass(depthDownsamplingPass);
     }
 
-    this.composer.addPass(
-        new this.library.EffectPass(camera, this.ssaoEffect, this.ssaoTextureEffect)
+    this.customDepthPass = this.createCustomDepthPass(csr);
+    this.composer.addPass(this.customDepthPass);
+
+    this.composer.addPass(normalPass);
+
+    const ssaoPass = new this.library.EffectPass(
+        csr.camera,
+        this.ssaoEffect,
+        this.ssaoTextureEffect
     );
+    this.composer.addPass(ssaoPass);
+
+    this.ssaoTextureEffect.setTextureSwizzleRGBA(this.library.ColorChannel.ALPHA);
+
+    this.ssaoTextureEffect.blendMode.setBlendFunction(this.library.BlendFunction.SKIP);
+
+    ssaoPass.encodeOutput = false;
+    depthDownsamplingPass.setDepthTexture(this.customDepthPass.texture);
+    this.ssaoEffect.setDepthTexture(this.customDepthPass.texture);
+
+    if (this.debug) {
+        this.csr.gui.setupSSAO(this.ssaoEffect, depthDownsamplingPass, this.library);
+    }
+};
+
+ripe.CSRPostProcess.prototype.createCustomDepthPass = function(csr) {
+    const depthVertexShader = `
+    #include <common>
+    #include <uv_pars_vertex>
+    #include <displacementmap_pars_vertex>
+    #include <morphtarget_pars_vertex>
+    #include <skinning_pars_vertex>
+    #include <clipping_planes_pars_vertex>
+    
+    varying vec2 vHighPrecisionZW;
+    
+    void main() {
+    
+        #include <uv_vertex>
+        #include <skinbase_vertex>
+    
+        #ifdef USE_DISPLACEMENTMAP
+    
+            #include <beginnormal_vertex>
+            #include <morphnormal_vertex>
+            #include <skinnormal_vertex>
+    
+        #endif
+    
+        #include <begin_vertex>
+        #include <morphtarget_vertex>
+        #include <skinning_vertex>
+        #include <displacementmap_vertex>
+        #include <project_vertex>
+        #include <clipping_planes_vertex>
+    
+        vHighPrecisionZW = gl_Position.zw;
+    
+    }`;
+
+    const depthFragmentShader = `
+    #if DEPTH_PACKING == 3200
+    
+        uniform float opacity;
+    
+    #endif
+    
+    #include <common>
+    #include <packing>
+    #include <uv_pars_fragment>
+    #include <map_pars_fragment>
+    #include <alphamap_pars_fragment>
+    #include <clipping_planes_pars_fragment>
+    
+    varying vec2 vHighPrecisionZW;
+    
+    void main() {
+    
+        #include <clipping_planes_fragment>
+        vec4 diffuseColor = vec4(1.0);
+    
+        #if DEPTH_PACKING == 3200
+    
+            diffuseColor.a = opacity;
+    
+        #endif
+    
+        #include <map_fragment>
+        #include <alphamap_fragment>
+        #include <alphatest_fragment>
+    
+        // Higher precision equivalent of gl_FragCoord.z.
+        float fragCoordZ = 0.5 * vHighPrecisionZW[0] / vHighPrecisionZW[1] + 0.5;
+    
+        #if DEPTH_PACKING == 3200
+    
+            gl_FragColor = vec4(vec3(1.0 - fragCoordZ), opacity);
+    
+        #elif DEPTH_PACKING == 3201
+    
+            gl_FragColor = packDepthToRGBA(fragCoordZ);
+    
+        #endif
+    
+    }`;
+
+    class CustomDepthMaterial extends csr.library.ShaderMaterial {
+        constructor(depthPacking = csr.library.RGBADepthPacking) {
+            super({
+                type: "CustomDepthMaterial",
+
+                defines: {
+                    DEPTH_PACKING: depthPacking.toFixed(0)
+                },
+
+                fragmentShader: depthFragmentShader,
+                vertexShader: depthVertexShader
+            });
+        }
+    }
+
+    // override default renderpass material
+    class CustomDepthPass extends this.library.DepthPass {
+        constructor(scene, camera, options) {
+            super(scene, camera, options);
+
+            this.renderPass.overrideMaterial = new CustomDepthMaterial();
+        }
+    }
+
+    return new CustomDepthPass(csr.scene, csr.camera);
 };

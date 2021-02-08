@@ -272,7 +272,7 @@ ripe.CSR.prototype.initialize = async function() {
     // for it, this may take several time to finish and may use
     // web artifact like web workers for its execution
     if (this.usesPostProcessing) {
-        await this.postprocessing.setup(this.scene, this.camera, this.renderer);
+        await this.postprocessing.setup(this);
     }
 
     if (this.playsAnimation) {
@@ -505,6 +505,7 @@ ripe.CSR.prototype._initializeRenderer = function() {
     this.renderer = new this.library.WebGLRenderer({
         antialias: false,
         stencil: false,
+        logarithmicDepthBuffer: true,
         depth: false,
         alpha: true,
         physicallyCorrectLights: true
@@ -977,29 +978,23 @@ ripe.CSR.prototype.changeFrameRotation = async function(frame) {
     // the renderer in case of a crossfade
     if (this.element.dataset.view !== nextView) {
         if (this.viewAnimate === "crossfade") {
-            console.log("1");
             await this.crossfade(options, "rotation");
             // updates the internal angles of the controls after
             // the crossfade finishes
             // this._updateAngles(options);
         } else if (this.viewAnimate === "rotate") {
-            console.log("2");
             this.controls.rotationTransition(options);
         } else if (this.viewAnimate === "none") {
-            console.log("3");
             this.rotate(options);
         }
     } else if (this.element.dataset.position !== nextPosition) {
         if (this.positionAnimate === "crossfade") {
-            console.log("4");
             await this.crossfade(options, "rotation");
 
             this._updateAngles(options);
         } else if (this.positionAnimate === "rotate") {
-            console.log("5");
             this.controls.rotationTransition(options);
         } else if (this.positionAnimate === "none") {
-            console.log("6");
             this.csr.rotate(options);
         }
     }
@@ -1160,7 +1155,7 @@ ripe.CSR.prototype._attemptRaycast = function(event, operation = "highlight") {
         if (intersects.length > 0) currentIntersection = intersects[0].object;
     } else {
         const objectId = this.raycaster.pick(coordinates);
-        currentIntersection = this.assetManager.raycastScene.getObjectById(objectId);
+        currentIntersection = this.assetManager.modelScene.getObjectById(objectId);
     }
 
     // did not find any intersection, return

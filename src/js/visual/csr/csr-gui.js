@@ -419,7 +419,7 @@ ripe.CSRGui.prototype.setupSSAO = function(ssaoEffect, depthDownsamplingPass, li
     folderSSAO
         .add(params, "intensity")
         .min(1.0)
-        .max(4.0)
+        .max(10.0)
         .step(0.01)
         .onChange(() => {
             uniforms.intensity.value = params.intensity;

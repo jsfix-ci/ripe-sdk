@@ -92,17 +92,19 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
     // of the scene (should use the RIPE SDK for model URL) and
     // then loads its sub-meshes
     const asset = await this._loadAsset();
+
     if (this.environmentScene) await this._loadAsset(this.environmentScene, "scene");
+
     if (wireframes) this._loadWireframes(asset);
 
     // sets the materials for the first time, if the model uses build
     if (this.usesBuild) {
         await this.setMaterials(this.owner.parts);
-
         // loads the complete set of animations defined in the
         // model configuration
-        for (const animation of this.modelConfig.animations) {
-            await this._loadAsset(animation, "animation");
+
+        for (const animation in this.modelConfig.animations) {
+            await this._loadAsset(this.modelConfig.animations[animation], "animation");
         }
     } else {
         // Updates the base colors for all the materials currently being used,
@@ -247,7 +249,7 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                 }
             });
 
-            this.raycastScene = asset;
+            this.modelScene = asset;
 
             console.info(`Loaded ${meshCount} meshes.`);
 
@@ -383,45 +385,37 @@ ripe.CSRAssetManager.prototype.disposeResources = async function() {
 };
 
 /**
- * Iterates through the loaded scene and checks if there is any
- * element of the scene that matches the part's name.
+ * Propagates material for all meshes that either match the partName
+ * or use the structure 'partName.number'.
  *
- * @param {String} part Name of the part to be analysed.
- * @returns {Mesh} The mesh for the requested name.
- */
-ripe.CSRAssetManager.prototype.getPart = function(partName) {
-    let part = null;
-
-    // iterate through the children of the scene, and check if the
-    // part is present in the scene structure
-    this.raycastScene.traverse(child => {
-        const isValid = child.name === partName;
-        
-        if (isValid) part = child;
-    });
-
-    // returns an invalid value as the default return value,
-    // meaning that no valid part mesh was found
-    return part;
-};
-
-/**
- * Propagates material for all children of given part.
- *
- * @param {Object} part The parent node/mesh.
+ * @param {Object} partName The part name that will be used for
+ * identifying the meshes.
  * @param {Material} material The material that will be set.
  */
-ripe.CSRAssetManager.prototype.cascadeMaterial = function(part, material) {
-    for (const child of part.children) {
-        if (child.type === "Object3D") {
-            this.cascadeMaterial(part.children[1]);
-        } else {
-            // no clone material is used, so that all nodes use the
-            // same material, making one change propagate to all
-            // the meshes using the same material.
-            child.material = material;
+ripe.CSRAssetManager.prototype.applyMaterial = function(partName, newMaterial) {
+    // traverse entire scene to discover the target meshes
+    this.modelScene.traverse(child => {
+        if (!child.isMesh) return;
+
+        // if it does not match the name, nor contains a number
+        if (!(child.name === partName || child.name.includes(partName + "_"))) return;
+
+        if (child.material) {
+            // child.material.dispose();
+            // child.material = null;
         }
-    }
+
+        // small tweak for transparent materials
+        if (newMaterial.transmissionMap != null) {
+            child.castShadow = true;
+        } else {
+            child.castShadow = false;
+        }
+
+        child.material = newMaterial;
+    });
+
+    newMaterial.dispose();
 };
 
 /**
@@ -434,13 +428,16 @@ ripe.CSRAssetManager.prototype.cascadeMaterial = function(part, material) {
  * loads all the textures.
  */
 ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = true) {
-    for (const part in parts) {
-        const scenePart = this.getPart(part);
+    console.log(parts);
 
-        if (scenePart === null) continue;
+    for (const part in parts) {
+        if (part === "shadow") {
+            continue;
+        }
 
         const material = parts[part].material;
         const color = parts[part].color;
+
         const newMaterial = await this._loadMaterial(part, material, color);
 
         // in case no auto apply is request returns the control flow
@@ -452,45 +449,14 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
             continue;
         }
 
-        // if it is an empty node, cascade the material to the children
-        if (scenePart.type === "Object3D") {
-            this.cascadeMaterial(scenePart, newMaterial);
-        }
-        // if it's a mesh or skinned mesh, apply material
-        else {
-            if (scenePart.material) {
-                scenePart.material.dispose();
-                scenePart.material = null;
-            }
-
-            scenePart.material = newMaterial.clone();
-            // only dispose the material, not the textures it contains
-            newMaterial.dispose();
-        }
+        this.applyMaterial(part, newMaterial);
     }
 
     // apply default materials
     for (const part in this.modelConfig.default) {
-        const scenePart = this.getPart(part);
-
-        if (!scenePart) continue;
-
         const newMaterial = await this._loadMaterial(part, "default");
 
-        // if it is an empty node, cascade the material to the children
-        if (scenePart.type === "Object3D") {
-            this.cascadeMaterial(scenePart, newMaterial);
-        }
-        // if it's a mesh or skinned mesh, apply material
-        else {
-            if (scenePart.material) {
-                scenePart.material.dispose();
-                scenePart.material = null;
-            }
-
-            scenePart.material = newMaterial.clone();
-            newMaterial.dispose();
-        }
+        this.applyMaterial(part, newMaterial);
     }
 
     // Updates the base colors for all the materials currently being used
@@ -509,7 +475,7 @@ ripe.CSRAssetManager.prototype._storePartsColors = function() {
     // iterates through all raycasting meshes, as these are the meshes
     // and empties that belong to the object itself, and not the whole
     // scene, and stores the initial color value for each material
-    this.raycastScene.traverse(child => {
+    this.modelScene.traverse(child => {
         if (!child.isMesh || !child.material) return;
 
         const material = child.material;
@@ -535,13 +501,16 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
     // requires the part
     if (type === "default") {
         materialConfig = this.modelConfig.default[part];
-    }
-    // if the specific texture doesn't exist, fallbacks to
-    // general textures
-    else if (!this.modelConfig[part] || !this.modelConfig[part][type]) {
-        materialConfig = this.modelConfig.general[type][color];
     } else {
-        materialConfig = this.modelConfig[part][type][color];
+        // check if specifc material config exists
+        if (this.modelConfig[part] && this.modelConfig[part][type]) {
+            materialConfig = this.modelConfig[part][type][color];
+        }
+        // if specific material does not exist try to get general
+        // specification
+        else {
+            materialConfig = this.modelConfig.general[type][color];
+        }
     }
 
     // follows specular-glossiness workflow
@@ -594,7 +563,6 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
                 texture.flipY = false;
 
                 this.loadedTextures[mapPath] = texture;
-
                 // since the material already has the texture,
                 // we can safely dispose it
                 texture.dispose();
@@ -604,10 +572,6 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
             if (prop.includes("alpha") || prop.includes("transmission")) {
                 newMaterial.depthWrite = false;
                 newMaterial.transparent = true;
-
-                // if it is transparent, make it not cast shadows
-                const scenePart = this.getPart(part);
-                scenePart.castShadow = false;
 
                 // replace opacity with the more physically accurate transmission
                 if (prop === "opacityMap" || prop === "alphaMap") {
