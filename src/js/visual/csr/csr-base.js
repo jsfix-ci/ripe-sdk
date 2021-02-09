@@ -159,6 +159,7 @@ ripe.CSR.prototype._registerHandlers = function() {
 
     window.onresize = () => {
         this.boundingBox = this.element.getBoundingClientRect();
+        this.updateSize();
     };
 };
 
@@ -179,7 +180,6 @@ ripe.CSR.prototype.updateOptions = async function(options) {
     this._setCameraOptions(options);
     this._setRenderOptions(options);
 
-    this.width = options.width === undefined ? this.width : options.width;
     this.element = options.element === undefined ? this.element : options.element;
     this.library = options.library === undefined ? this.library : options.library;
     this.viewAnimate = options.viewAnimate === undefined ? this.viewAnimate : options.viewAnimate;
@@ -916,20 +916,22 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
  * @param {Object} options The struct containing the new values for rotation and camera distance.
  */
 ripe.CSR.prototype.rotate = function(options) {
-    const maxHeight = options.distance - this.cameraHeight;
-
     // update to camera target, recenter
     if (options.target) {
         this.cameraTarget = options.target;
     }
 
-    const distance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
+    const xDistance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
+    const yDistance = options.distance;
+
+    console.log(options.rotationY, this.cameraTarget.y, xDistance, yDistance);
+
     this.camera.position.x =
-        this.cameraTarget.x + distance * Math.sin((Math.PI / 180) * options.rotationX * -1);
+        this.cameraTarget.x + xDistance * Math.sin((Math.PI / 180) * options.rotationX * -1);
     this.camera.position.y =
-        this.cameraTarget.y + maxHeight * Math.sin((Math.PI / 180) * options.rotationY);
+        this.cameraTarget.y + yDistance * Math.sin((Math.PI / 180) * options.rotationY);
     this.camera.position.z =
-        this.cameraTarget.z + distance * Math.cos((Math.PI / 180) * options.rotationX);
+        this.cameraTarget.z + xDistance * Math.cos((Math.PI / 180) * options.rotationX);
 
     // update position and view information
     const newView = this._rotationToView(options.rotationY);
