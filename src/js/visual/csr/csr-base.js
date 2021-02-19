@@ -94,7 +94,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     // base initialization, does not require assets to be loaded
     this._initializeCameras();
     this._initializeRenderer();
-    // this._initializeLights();
+    this._initializeLights();
     this._registerHandlers();
     this._initializeShaders();
     this._initializeRaycaster();

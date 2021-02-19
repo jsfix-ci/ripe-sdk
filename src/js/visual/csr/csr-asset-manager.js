@@ -103,8 +103,8 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
         // loads the complete set of animations defined in the
         // model configuration
 
-        for (const animation in this.modelConfig.animations) {
-            await this._loadAsset(this.modelConfig.animations[animation], "animation");
+        for (let i = 0; i < this.modelConfig.animations.length; i++) {
+            await this._loadAsset(this.modelConfig.animations[i], "animation");
         }
     } else {
         // Updates the base colors for all the materials currently being used,
