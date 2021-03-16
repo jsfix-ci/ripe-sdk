@@ -215,8 +215,7 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
     // removes the current text meshes from the scene, and adds the newly
     // generated meshes
     if (options.reason && options.reason === "set initials") {
-        await this.csr.updateInitials("remove");
-        await this.csr.updateInitials("add");
+        this.csr.updateInitials();
         this.csr.needsRenderUpdate = true;
     }
 

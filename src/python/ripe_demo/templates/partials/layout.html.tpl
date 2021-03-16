@@ -13,12 +13,12 @@
             <script type="text/javascript" src="{{ touch('//libs.platforme.com/layout/js/layout-min.js') }}"></script>
             {% if own.is_devel() %}
                 <!-- TODO this is a temporary hack to load configs, this should be dynamically loaded -->
-                <script type="text/javascript" src="{{ url_for('static', filename = 'assets/cartier/configs/santos.js') }}"></script>
+                <script type="text/javascript" src="{{ url_for('static', filename = 'assets/cartier/santos_watch/build.js') }}"></script>
                 <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename = 'css/ripe.css') }}" />
                 <script type="text/javascript" src="{{ url_for('static', filename = 'js/ripe.js', compress = 'js') }}"></script>
             {% else %}
                 <!-- TODO this is a temporary hack to load configs, this should be dynamically loaded -->
-                <script type="text/javascript" src="{{ url_for('static', filename = 'assets/cartier/configs/santos.js') }}"></script>
+                <script type="text/javascript" src="{{ url_for('static', filename = 'assets/cartier/santos_watch/build.js') }}"></script>
                 <link rel="stylesheet" type="text/css" href="{{ touch('//sdk.platforme.com/css/ripe.css') }}" />
                 <script type="text/javascript" src="{{ touch('//sdk.platforme.com/js/ripe.js') }}"></script>
             {% endif %}

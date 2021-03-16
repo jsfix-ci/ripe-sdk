@@ -65,7 +65,9 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.exposure = 1.5;
     this.radius = 1;
 
-    this.usesScene = options.assets.scene !== undefined;
+    this.usesScene = false;
+
+    if (options.assets && options.assets.scene) this.usesScene = options.assets.scene !== undefined;
 
     this.partsMap = options.partsMap || {};
 

@@ -42,17 +42,16 @@ ripe.CSRAssetManager = function(csr, owner, options) {
         this.modelPath = options.modelPath;
     }
 
-    this.assetsPath = options.assets.path || "";
-    this.format = options.assets.format || "gltf";
+    this.format = options.format || "gltf";
     this.textureLoader = new this.library.TextureLoader();
 
-    this.modelConfig = options.assets.config;
+    this.modelConfig = options.config;
 
     this.wireframes = {};
     this.animations = new Map();
     this.loadedTextures = {};
     this.environmentTexture = null;
-    this.environmentScene = options.assets.scene === undefined ? null : options.assets.scene;
+    this.environmentScene = options.scene === undefined ? null : options.scene;
 
     // creates a temporary render to be able to obtain a
     // series of properties that will be applicable to an
@@ -73,9 +72,8 @@ ripe.CSRAssetManager.prototype.constructor = ripe.CSRAssetManager;
  */
 ripe.CSRAssetManager.prototype.updateOptions = async function(options) {
     // materials
-    this.assetsPath = options.assets.path === undefined ? this.assetsPath : options.assets.path;
-    this.modelConfig =
-        options.assets.config === undefined ? this.modelConfig : options.assets.config;
+    this.assetsPath = options.path === undefined ? this.assetsPath : options.path;
+    this.modelConfig = options.config === undefined ? this.modelConfig : options.config;
 };
 
 /**
@@ -103,8 +101,8 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
         // loads the complete set of animations defined in the
         // model configuration
 
-        for (let i = 0; i < this.modelConfig.animations.length; i++) {
-            await this._loadAsset(this.modelConfig.animations[i], "animation");
+        for (let i = 0; i < this.modelConfig.assets.animations.length; i++) {
+            await this._loadAsset(this.modelConfig.assets.animations[i], "animation");
         }
     } else {
         // Updates the base colors for all the materials currently being used,
@@ -183,7 +181,6 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
             // "gathers" the first animation of the asset as the main,
             // the one that is going to be store in memory
             this.animations.set(filename, asset.animations[0]);
-            
             return null;
         case "scene":
             // traverses the scene to add shadows to the loaded meshes
@@ -197,7 +194,6 @@ ripe.CSRAssetManager.prototype._loadAsset = async function(filename = null, kind
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    child.material.envMapIntensity = 0;
                 }
             });
 
@@ -428,8 +424,6 @@ ripe.CSRAssetManager.prototype.applyMaterial = function(partName, newMaterial) {
  * loads all the textures.
  */
 ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = true) {
-    console.log(parts);
-
     for (const part in parts) {
         if (part === "shadow") {
             continue;
@@ -438,7 +432,14 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
         const material = parts[part].material;
         const color = parts[part].color;
 
-        const newMaterial = await this._loadMaterial(part, material, color);
+        let newMaterial = null;
+
+        // if material does not exist, then use the default one
+        if (!this.modelConfig.assets.materials[part][material]) {
+            newMaterial = await this._loadMaterial(part, "default");
+        } else {
+            newMaterial = await this._loadMaterial(part, material, color);
+        }
 
         // in case no auto apply is request returns the control flow
         // to the caller function immediately
@@ -452,8 +453,13 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
         this.applyMaterial(part, newMaterial);
     }
 
-    // apply default materials
-    for (const part in this.modelConfig.default) {
+    // apply default materials for meshes that do not have an associated part
+    for (const part in this.modelConfig.assets.materials) {
+        // if it's a known part, it has already been added
+        if (Object.keys(parts).includes(part)) {
+            continue;
+        }
+
         const newMaterial = await this._loadMaterial(part, "default");
 
         this.applyMaterial(part, newMaterial);
@@ -499,18 +505,17 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
 
     // if the default mode is requested, the model config only
     // requires the part
-    if (type === "default") {
-        materialConfig = this.modelConfig.default[part];
+    // check if specifc material config exists
+    if (part === "initials") {
+        materialConfig = this.modelConfig.initials.materials[type][color];
+    } else if (
+        this.modelConfig.assets.materials[part] &&
+        this.modelConfig.assets.materials[part][type] &&
+        this.modelConfig.assets.materials[part][type][color]
+    ) {
+        materialConfig = this.modelConfig.assets.materials[part][type][color];
     } else {
-        // check if specifc material config exists
-        if (this.modelConfig[part] && this.modelConfig[part][type]) {
-            materialConfig = this.modelConfig[part][type][color];
-        }
-        // if specific material does not exist try to get general
-        // specification
-        else {
-            materialConfig = this.modelConfig.general[type][color];
-        }
+        materialConfig = this.modelConfig.assets.materials[part].default;
     }
 
     // follows specular-glossiness workflow
@@ -528,17 +533,16 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
 
     // builds the base relative path for the loading of textures
     // using a pre-defined convention for the structure
-    const basePath = `${this.assetsPath}${this.owner.brand}/textures/${this.owner.model}/`;
+    const basePath = `${this.assetsPath}${this.owner.brand}/${this.owner.model}/`;
 
     for (const prop in materialConfig) {
         // if it's a map, loads and applies the texture
         if (prop.includes("map") || prop.includes("Map")) {
             const mapPath = basePath + materialConfig[prop];
-
             if (!this.loadedTextures[mapPath]) {
                 const texture = await new Promise((resolve, reject) => {
-                    this.textureLoader.load(mapPath, function(texture) {
-                        resolve(texture);
+                    this.textureLoader.load(mapPath, function(loadedTexture) {
+                        resolve(loadedTexture);
                     });
                 });
 
@@ -568,30 +572,14 @@ ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color)
                 texture.dispose();
             }
 
-            // is transparent material
-            if (prop.includes("alpha") || prop.includes("transmission")) {
-                newMaterial.depthWrite = false;
-                newMaterial.transparent = true;
-
-                // replace opacity with the more physically accurate transmission
-                if (prop === "opacityMap" || prop === "alphaMap") {
-                    newMaterial[prop] = this.loadedTextures[mapPath];
-                    newMaterial.transmissionMap = this.loadedTextures[mapPath];
-                }
-            }
-            // if it standard opaque material
-            else {
-                newMaterial[prop] = this.loadedTextures[mapPath];
-            }
+            newMaterial[prop] = this.loadedTextures[mapPath];
         }
         // if it's not a map, it's a property, apply it
-        else {
-            if (prop === "color" || prop === "specular") {
-                const color = this.getColorFromProperty(materialConfig[prop]);
-                newMaterial[prop] = color;
-            } else {
-                newMaterial[prop] = materialConfig[prop];
-            }
+        else if (prop === "color" || prop === "specular") {
+            const color = this.getColorFromProperty(materialConfig[prop]);
+            newMaterial[prop] = color;
+        } else {
+            newMaterial[prop] = materialConfig[prop];
         }
     }
 
@@ -621,7 +609,7 @@ ripe.CSRAssetManager.prototype.getColorFromProperty = function(value) {
  */
 ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer, environment) {
     const pmremGenerator = new this.library.PMREMGenerator(renderer);
-    const environmentMapPath = `${this.assetsPath}${this.owner.brand}/environments/${environment}.hdr`;
+    const environmentMapPath = `${this.assetsPath}environments/${environment}.hdr`;
 
     const rgbeLoader = new this.library.RGBELoader();
     const texture = await new Promise((resolve, reject) => {

@@ -372,17 +372,16 @@ window.onload = function() {
                 // allows raycast operations during animation, defaults to false
                 enableRaycastAnimation: true,
 
-                assets: {
-                    // model data is stored in `vyner_hitop.js` temporarily, is meant to be a JSON
-                    // that is downloaded, or present in a spec file
-                    // eslint-disable-next-line no-undef
-                    config: modelData,
+                // model data is stored in `vyner_hitop.js` temporarily, is meant to be a JSON
+                // that is downloaded, or present in a spec file
+                // eslint-disable-next-line no-undef
+                config: modelData,
 
-                    // the relative path with the location of the assets
-                    path: "/static/assets/",
+                // the relative path with the location of the assets
+                path: "/static/assets/",
 
-                    // can be "gltf" or "fbx", defaults to "gltf" if no parameter is passed
-                    format: "gltf"
+                initials: {
+                    align: "center"
                 },
 
                 initials: {

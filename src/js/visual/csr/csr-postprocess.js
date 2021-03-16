@@ -185,7 +185,7 @@ ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, csr) {
         minRadiusScale: 0.1,
         radius: 0.012,
         intensity: 100,
-        bias: 0.0,
+        bias: 0.01,
         fade: 0.01,
         color: null,
         resolutionScale: 1
@@ -203,6 +203,7 @@ ripe.CSRPostProcess.prototype._setupAOPass = async function(normalPass, csr) {
     }
 
     this.customDepthPass = this.createCustomDepthPass(csr);
+
     this.composer.addPass(this.customDepthPass);
 
     this.composer.addPass(normalPass);
