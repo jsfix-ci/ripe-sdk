@@ -508,7 +508,6 @@ ripe.CSR.prototype._initializeRenderer = function() {
         antialias: false,
         stencil: false,
         logarithmicDepthBuffer: true,
-        depth: false,
         alpha: true,
         physicallyCorrectLights: true
     });
@@ -633,25 +632,18 @@ ripe.CSR.prototype.updateWireframe = function(value) {
 
 /**
  * Responsible for updating the initials meshes in the scene.
- *
- * @param {String} operation Can be "remove" or "add", to either destroy the meshes from the scene,
- * or add them.
- * @param {Array} meshes The target meshes that will be modified.
  */
-ripe.CSR.prototype.updateInitials = async function(operation) {
-    const meshes = this.initials.textMeshes;
-
-    for (let i = 0; i < meshes.length; i++) {
-        if (operation === "remove") {
-            this.scene.remove(meshes[i]);
-        }
-
-        if (operation === "add") {
-            this.scene.add(meshes[i]);
-        }
+ripe.CSR.prototype.updateInitials = async function() {
+    // removes all the current scene meshes
+    for (let i = 0; i < this.initials.textMeshes.length; i++) {
+        this.scene.remove(this.initials.textMeshes[i]);
     }
 
     await this.initials.update();
+
+    for (let i = 0; i < this.initials.textMeshes.length; i++) {
+        this.scene.add(this.initials.textMeshes[i]);
+    }
 };
 
 /**

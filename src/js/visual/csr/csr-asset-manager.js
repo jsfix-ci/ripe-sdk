@@ -26,12 +26,11 @@ if (
 ripe.CSRAssetManager = function(csr, owner, options) {
     // there must be a model configuration, otherwise an error will occur
     // in case there's not throws a series of exceptions
-    if (!options.assets) throw new Error("No assets definition available");
-    if (!options.assets.config) throw new Error("No valid configuration provided");
+    if (!options.config) throw new Error("No valid configuration provided");
 
     this.owner = owner;
     this.csr = csr;
-    this.assetsPath = options.assets.path;
+    this.assetsPath = options.path || "";
 
     this.library = options.library;
     this.owner = owner;
@@ -402,10 +401,10 @@ ripe.CSRAssetManager.prototype.applyMaterial = function(partName, newMaterial) {
         }
 
         // small tweak for transparent materials
-        if (newMaterial.transmissionMap != null) {
-            child.castShadow = true;
-        } else {
+        if (newMaterial.transparent === true) {
             child.castShadow = false;
+        } else {
+            child.castShadow = true;
         }
 
         child.material = newMaterial;
@@ -436,9 +435,9 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
 
         // if material does not exist, then use the default one
         if (!this.modelConfig.assets.materials[part][material]) {
-            newMaterial = await this._loadMaterial(part, "default");
+            newMaterial = await this.loadMaterial(part, "default");
         } else {
-            newMaterial = await this._loadMaterial(part, material, color);
+            newMaterial = await this.loadMaterial(part, material, color);
         }
 
         // in case no auto apply is request returns the control flow
@@ -499,7 +498,7 @@ ripe.CSRAssetManager.prototype._storePartsColors = function() {
  * @param {String} type The type of material, such as "python" or "nappa".
  * @param {String} color The color of the material.
  */
-ripe.CSRAssetManager.prototype._loadMaterial = async function(part, type, color) {
+ripe.CSRAssetManager.prototype.loadMaterial = async function(part, type, color) {
     let materialConfig;
     let newMaterial;
 

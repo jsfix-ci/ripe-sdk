@@ -208,12 +208,12 @@ ripe.CSRInitials.prototype._getLetterMaterial = async function(engraving) {
     // check if material exists, otherwise use the first one
     // it finds
     if (this.config.materials.material && this.config.materials.material.type) {
-        letterMaterial = await this.assetManager._loadMaterial("initials", material, type);
+        letterMaterial = await this.assetManager.loadMaterial("initials", material, type);
     } else {
         material = Object.keys(this.config.materials)[0];
         type = Object.keys(this.config.materials[material])[0];
 
-        letterMaterial = await this.assetManager._loadMaterial("initials", material, type);
+        letterMaterial = await this.assetManager.loadMaterial("initials", material, type);
     }
 
     return letterMaterial;
@@ -258,7 +258,10 @@ ripe.CSRInitials.prototype.getPosRotLetter = function(letterOffset, initials) {
     }
 
     // if it aligns perfectly with the mesh position
-    if (this.align !== "center" || (this.align === "center" && initials.length % 2 === size % 2)) {
+    if (
+        this.align !== "center" || 
+        (this.align === "center" && initials.length % 2 === size % 2) || 
+        (this.align === "center" && initials.length % 3 === size % 3)) {
         const position = new this.library.Vector3(
             this.config.placements[posInInitials].position.x,
             this.config.placements[posInInitials].position.y,
