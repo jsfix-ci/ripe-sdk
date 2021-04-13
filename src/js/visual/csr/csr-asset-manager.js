@@ -459,7 +459,7 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
             continue;
         }
 
-        const newMaterial = await this._loadMaterial(part, "default");
+        const newMaterial = await this.loadMaterial(part, "default");
 
         this.applyMaterial(part, newMaterial);
     }
@@ -608,7 +608,7 @@ ripe.CSRAssetManager.prototype.getColorFromProperty = function(value) {
  */
 ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer, environment) {
     const pmremGenerator = new this.library.PMREMGenerator(renderer);
-    const environmentMapPath = `${this.assetsPath}environments/${environment}.hdr`;
+    const environmentMapPath = `${this.assetsPath}${this.owner.brand}/${this.owner.model}/${environment}`;
 
     const rgbeLoader = new this.library.RGBELoader();
     const texture = await new Promise((resolve, reject) => {

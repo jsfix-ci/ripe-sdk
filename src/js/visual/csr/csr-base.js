@@ -38,7 +38,6 @@ ripe.CSR = function(configurator, owner, element, options) {
 
     // sets the default configurations
     this.cameraFOV = 20;
-    this.cameraHeight = 0;
     this.cameraTarget = new this.library.Vector3(0, 0, 0);
     this.initialDistance = 100;
 
@@ -47,7 +46,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     // sets the default render options
     this.easing = this.materialEasing = this.crossfadeEasing = this.highlightEasing =
         "easeInOutQuad";
-    this.environment = "";
+    this.background = "";
     this.noMasks = false;
     this.useMasks = true;
     this.maskOpacity = 0.4;
@@ -93,6 +92,11 @@ ripe.CSR = function(configurator, owner, element, options) {
 
     this.scene = new this.library.Scene();
 
+    // create support structures
+    this.initials = new ripe.CSRInitials(this.owner, options);
+    this.controls = new ripe.CSRControls(this, configurator, this.element, options);
+    this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
+
     // base initialization, does not require assets to be loaded
     this._initializeCameras();
     this._initializeRenderer();
@@ -100,11 +104,6 @@ ripe.CSR = function(configurator, owner, element, options) {
     this._registerHandlers();
     this._initializeShaders();
     this._initializeRaycaster();
-
-    // create support structures
-    this.initials = new ripe.CSRInitials(this.owner, options);
-    this.controls = new ripe.CSRControls(this, configurator, this.element, options);
-    this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
 
     // triggers the initial loading of the assets, according to the
     // configuration currently set in the instance, and stores the result
@@ -190,12 +189,11 @@ ripe.CSR.prototype.updateOptions = async function(options) {
 };
 
 ripe.CSR.prototype._setCameraOptions = function(options = {}) {
-    if (!options.camera) return;
+    const camOptions = options.camera || options.config.camera;
 
-    const camOptions = options.camera;
+    if (!camOptions) return;
 
     this.cameraFOV = camOptions.fov === undefined ? this.cameraFOV : camOptions.fov;
-    this.cameraHeight = camOptions.height === undefined ? this.cameraHeight : camOptions.height;
     this.cameraTarget =
         camOptions.target === undefined
             ? this.cameraTarget
@@ -212,6 +210,7 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     if (!options.renderer) return;
 
     const renderOptions = options.renderer;
+    const assetOptions = options.assets || options.config.assets;
 
     this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
     this.materialEasing =
@@ -227,8 +226,9 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
             ? this.highlightEasing
             : renderOptions.highlightEasing;
 
-    this.environment =
-        renderOptions.environment === undefined ? this.environment : renderOptions.environment;
+    this.background =
+        assetOptions.background === undefined ? this.background : assetOptions.background;
+
     this.noMasks = renderOptions.noMasks === undefined ? this.noMasks : renderOptions.noMasks;
     this.useMasks = renderOptions.useMasks === undefined ? this.useMasks : renderOptions.useMasks;
     this.maskOpacity =
@@ -246,11 +246,11 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
             ? this.playsAnimation
             : renderOptions.playsAnimation;
     this.animationLoops =
-        renderOptions.animationLoops === undefined
+        assetOptions.animationLoops === undefined
             ? this.animationLoops
-            : renderOptions.animationLoops;
+            : assetOptions.animationLoops;
     this.animation =
-        renderOptions.animation === undefined ? this.animation : renderOptions.animation;
+        assetOptions.selectedAnimation === undefined ? this.animation : assetOptions.selectedAnimation;
 };
 
 /**
@@ -398,8 +398,8 @@ ripe.CSR.prototype._loadAssets = async function() {
         this.mixer = new this.library.AnimationMixer(this.scene);
     }
 
-    if (this.environment) {
-        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.environment);
+    if (this.background) {
+        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.background);
     }
 };
 
@@ -551,7 +551,11 @@ ripe.CSR.prototype._initializeCameras = function() {
     const height = this.element.getBoundingClientRect().height;
 
     this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 200);
-    this.camera.position.set(0, this.cameraHeight, this.initialDistance);
+    this.camera.position.set(0, 0, 0);
+
+    // set the camera in the original place
+    this.controls.updateRotation();
+    this.controls.performSimpleRotation();
 
     if (this.element.dataset.view === "side") {
         this._currentVerticalRot = 0;
@@ -918,10 +922,8 @@ ripe.CSR.prototype.rotate = function(options) {
     const xDistance = options.distance * Math.cos((Math.PI / 180) * options.rotationY);
     const yDistance = options.distance;
 
-    console.log(options.rotationY, this.cameraTarget.y, xDistance, yDistance);
-
     this.camera.position.x =
-        this.cameraTarget.x + xDistance * Math.sin((Math.PI / 180) * options.rotationX * -1);
+        this.cameraTarget.x + xDistance * Math.sin((Math.PI / 180) * options.rotationX);
     this.camera.position.y =
         this.cameraTarget.y + yDistance * Math.sin((Math.PI / 180) * options.rotationY);
     this.camera.position.z =

@@ -259,9 +259,10 @@ ripe.CSRInitials.prototype.getPosRotLetter = function(letterOffset, initials) {
 
     // if it aligns perfectly with the mesh position
     if (
-        this.align !== "center" || 
-        (this.align === "center" && initials.length % 2 === size % 2) || 
-        (this.align === "center" && initials.length % 3 === size % 3)) {
+        this.align !== "center" ||
+        (this.align === "center" && initials.length % 2 === size % 2) ||
+        (this.align === "center" && initials.length % 3 === size % 3)
+    ) {
         const position = new this.library.Vector3(
             this.config.placements[posInInitials].position.x,
             this.config.placements[posInInitials].position.y,

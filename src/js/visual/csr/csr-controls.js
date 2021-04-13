@@ -27,17 +27,15 @@ ripe.CSRControls = function(csr, configurator, element, options) {
     this.camera = csr.camera;
     this.element = element;
 
-    this.maximumHorizontalRot = 359;
-    this.minimumHorizontalRot = 0;
-    this.maximumVerticalRot = 89;
-    this.minimumVerticalRot = 0;
+    this.maxHorAngle = 359;
+    this.minHorAngle = 0;
+    this.maxVerAngle = 89;
+    this.minVerAngle = 0;
 
     this.rotationEasing = "easeInOutQuad";
 
     this.maxDistance = 1000;
     this.minDistance = 0;
-
-    this.lockRotation = "";
 
     this.smoothControls = true;
 
@@ -47,9 +45,6 @@ ripe.CSRControls = function(csr, configurator, element, options) {
 
     this._previousRotEvent = null;
     this._previousPanEvent = null;
-
-    this._setControlsOptions(options);
-    this._registerHandlers();
 
     this.referenceCameraTarget = this.csr.cameraTarget;
     this.referenceCameraDistance = this.csr.initialDistance;
@@ -75,6 +70,9 @@ ripe.CSRControls = function(csr, configurator, element, options) {
 
     this.maxDriftTime = 0.6;
 
+    this._setControlsOptions(options);
+    this._registerHandlers();
+
     this.createLoop();
 };
 
@@ -88,59 +86,48 @@ ripe.CSRControls.prototype.constructor = ripe.CSRControls;
  * controls' behaviour.
  */
 ripe.CSRControls.prototype._setControlsOptions = function(options) {
-    if (options.camera) {
-        this.currentDistance =
-            options.camera.distance === undefined ? this.currentDistance : options.camera.distance;
-        this.baseDistance = this.currentDistance;
-        this.maxDistance =
-            options.camera.maxDistance === undefined
-                ? this.maxDistance
-                : options.camera.maxDistance;
-        this.minDistance =
-            options.camera.minDistance === undefined
-                ? this.minDistance
-                : options.camera.minDistance;
-    }
+    const cameraOptions = options.camera || options.config.camera;
 
-    if (!options.controls) return;
+    console.log(cameraOptions);
 
-    const controlOptions = options.controls;
+    if (!cameraOptions) return;
 
-    this.maximumHorizontalRot =
-        controlOptions.maximumHorizontalRot === undefined
-            ? this.maximumHorizontalRot
-            : controlOptions.maximumHorizontalRot;
-    this.minimumHorizontalRot =
-        controlOptions.minimumHorizontalRot === undefined
-            ? this.minimumHorizontalRot
-            : controlOptions.minimumHorizontalRot;
+    this.currentDistance =
+        cameraOptions.distance === undefined ? this.currentDistance : cameraOptions.distance;
+    this.baseDistance = this.currentDistance;
+    this.maxDistance =
+        cameraOptions.maxDistance === undefined ? this.maxDistance : cameraOptions.maxDistance;
+    this.minDistance =
+        cameraOptions.minDistance === undefined ? this.minDistance : cameraOptions.minDistance;
 
-    this.maximumVerticalRot =
-        controlOptions.maximumVerticalRot === undefined
-            ? this.maximumVerticalRot
-            : controlOptions.maximumVerticalRot;
-    this.minimumVerticalRot =
-        controlOptions.minimumVerticalRot === undefined
-            ? this.minimumVerticalRot
-            : controlOptions.minimumVerticalRot;
+    this.targetRotation = new this.csr.library.Vector2(
+        cameraOptions.horizontalAngle,
+        cameraOptions.verticalAngle
+    );
+    this.currentRotation = this.targetRotation.clone();
+
+    this.maxHorAngle =
+        cameraOptions.maxHorAngle === undefined ? this.maxHorAngle : cameraOptions.maxHorAngle;
+    this.minHorAngle =
+        cameraOptions.minHorAngle === undefined ? this.minHorAngle : cameraOptions.minHorAngle;
+
+    this.maxVerAngle =
+        cameraOptions.maxVerAngle === undefined ? this.maxVerAngle : cameraOptions.maxVerAngle;
+    this.minVerAngle =
+        cameraOptions.minVerAngle === undefined ? this.minVerAngle : cameraOptions.minVerAngle;
 
     // types of transition can be "cross", "rotation" or "none"
     this.rotationEasing =
-        controlOptions.rotationEasing === undefined
+        cameraOptions.rotationEasing === undefined
             ? this.rotationEasing
-            : controlOptions.rotationEasing;
+            : cameraOptions.rotationEasing;
 
-    this.lockRotation =
-        controlOptions.lockRotation === undefined ? this.lockRotation : controlOptions.lockRotation;
-
-    this.canZoom = controlOptions.canZoom === undefined ? this.canZoom : controlOptions.canZoom;
-    this.canPan = controlOptions.canPan === undefined ? this.canPan : controlOptions.canPan;
-    this.canPivot = controlOptions.canPivot === undefined ? this.canPivot : controlOptions.canPivot;
+    this.canPan = cameraOptions.canPan === undefined ? this.canPan : cameraOptions.canPan;
 
     this.smoothControls =
-        controlOptions.smoothControls === undefined
+        cameraOptions.smoothControls === undefined
             ? this.smoothControls
-            : controlOptions.smoothControls;
+            : cameraOptions.smoothControls;
 };
 
 /**
@@ -268,8 +255,6 @@ ripe.CSRControls.prototype._registerHandlers = function() {
     // taking into account that there may be a touch handler
     // already defined
     ripe.touchHandler(this.element);
-
-    if (!this.canZoom) return;
 
     // listens to the mouse wheel event to zoom in or out
     area.addEventListener(
@@ -401,23 +386,25 @@ ripe.CSRControls.prototype._parsePan = function(event) {
 
     this.isPanning = true;
 
-    const newX = (event.x - this._previousPanEvent.x) / 100;
-    const newY = (event.y - this._previousPanEvent.y) / 100;
+    // we subtract for a more intuitive feel
+    const newX = -(event.x - this._previousPanEvent.x) / 100;
+    const newY = -(event.y - this._previousPanEvent.y) / 100;
 
-    const radX = this.currentRotation.x * (Math.PI / 180);
-    const radY = this.currentRotation.y * (Math.PI / 180);
+    const radX = this.deg2rad(this.currentRotation.x);
+    const radY = this.deg2rad(this.currentRotation.y);
 
-    //            event.x impact                                event.x impact when with tilted camera                  event.y impact when with tilted camera
+    // event.x impact + event.x impact when with tilted camera + event.y impact when with tilted camera
+    // if a "- 1" is multiplied, it's to assure the same drag impact
     const xDiff =
-        newX * Math.cos(radX) * -1 * Math.cos(radY) +
-        newX * Math.cos(radX) * Math.abs(Math.sin(radY)) * -1 +
+        newX * Math.cos(radX) * Math.cos(radY) +
+        newX * Math.cos(radX) * Math.abs(Math.sin(radY)) +
         newY * Math.sin(radX) * Math.sin(radY);
     const zDiff =
         newX * Math.sin(radX) * -1 * Math.cos(radY) +
-        newX * Math.sin(radX) * Math.abs(Math.sin(radY)) * -1 +
-        newY * Math.cos(radX) * Math.sin(radY) * -1;
+        newX * Math.sin(radX) * -1 * Math.abs(Math.sin(radY)) +
+        newY * Math.cos(radX) * Math.sin(radY);
     this.targetPan.x += xDiff;
-    this.targetPan.y += newY * Math.cos(radY);
+    this.targetPan.y += -newY * Math.cos(radY);
     this.targetPan.z += zDiff;
 
     // after all the calculations are done, update the previous event
@@ -429,20 +416,18 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
 
     if (!this.element.classList.contains("drag")) this.element.classList.add("drag");
 
-    let newX = 0;
-    let newY = 0;
+    const newX = event.x - this._previousRotEvent.x;
+    const newY = event.y - this._previousRotEvent.y;
 
-    // only use the rotation that matters according to the locked
-    // rotation axis
-    if (this.lockRotation !== "vertical") newX = event.x - this._previousRotEvent.x;
+    // we subtract to have a more intuitive feel
+    if (this.minHorAngle < 0 && this.maxHorAngle > 359) this.targetRotation.x -= newX;
+    else
+        { this.targetRotation.x = Math.min(
+            Math.max(this.targetRotation.x - newX, this.minHorAngle),
+            this.maxHorAngle
+        ); }
 
-    if (this.lockRotation !== "horizontal") newY = event.y - this._previousRotEvent.y;
-
-    this.targetRotation.x = this.targetRotation.x + newX;
-    this.targetRotation.y = Math.min(
-        Math.max(this.targetRotation.y + newY, this.minimumVerticalRot),
-        this.maximumVerticalRot
-    );
+    this.targetRotation.y = this.validVericalAngle(this.targetRotation.y + newY);
 
     // after all the calculations are done, update the previous event
     this._previousRotEvent = event;
@@ -458,7 +443,7 @@ ripe.CSRControls.prototype._updateAngles = function(options = {}) {
     const newX = options.rotationX === undefined ? this.currentRotation.x : options.rotationX;
     const newY = options.rotationY === undefined ? this.currentRotation.y : options.rotationY;
 
-    this.currentRotation.x = this._validatedAngle(newX);
+    this.currentRotation.x = this.validHorizontalAngle(newX);
     this.mouseDeltaX = 0;
 
     this.currentRotation.y = newY;
@@ -643,7 +628,9 @@ ripe.CSRControls.prototype.validHorizontalAngle = function(angle) {
     if (angle > 360) newAngle -= 360;
     if (angle < 0) newAngle += 360;
 
-    return Math.min(Math.max(newAngle, this.minimumHorizontalRot), this.maximumHorizontalRot);
+    // can freely rotate
+    if (this.minHorAngle < 0 && this.maxHorAngle > 360) return newAngle;
+    else return Math.min(Math.max(newAngle, this.minHorAngle), this.maxHorAngle);
 };
 
 /**
@@ -653,9 +640,9 @@ ripe.CSRControls.prototype.validHorizontalAngle = function(angle) {
  */
 ripe.CSRControls.prototype.validVericalAngle = function(angle) {
     let newAngle = angle;
-    const maxAngle = 89;
 
-    if (newAngle > maxAngle) newAngle = maxAngle;
-    if (newAngle < maxAngle * -1) newAngle = maxAngle * -1;
-    return Math.min(Math.max(this.minimumVerticalRot, newAngle), this.maximumVerticalRot);
+    if (newAngle > this.maxVerAngle) newAngle = this.maxVerAngle;
+    if (newAngle < this.minVerAngle) newAngle = this.minVerAngle;
+
+    return Math.min(Math.max(this.minVerAngle, newAngle), this.maxVerAngle);
 };

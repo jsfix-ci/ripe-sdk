@@ -384,23 +384,6 @@ window.onload = function() {
                     align: "center"
                 },
 
-                initials: {
-                    align: "center",
-                    size: 0.5,
-                    height: 0.1,
-                    type: "comic_sans",
-                    weight: "light"
-                },
-
-                camera: {
-                    fov: 13,
-                    height: 4,
-                    target: { x: 0, y: 4, z: 0.0 },
-                    distance: 55,
-                    maxDistance: 90,
-                    minDistance: 0
-                },
-
                 controls: {
                     smoothControls: true,
                     // if we're allowed to zoom in as part of the orbital controls
@@ -421,11 +404,6 @@ window.onload = function() {
                     materialEasing: "easeInOutQuad",
                     crossfadeEasing: "easeInOutQuad",
                     initialsPlacement: "center",
-                    // 'animation' is an extra parameter
-                    animation: "santos_explode.glb",
-                    playsAnimation: true,
-                    animationLoops: true,
-                    environment: "chinese_garden",
                     maskOpacity: 0.7
                 },
 
