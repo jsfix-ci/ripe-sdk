@@ -47,6 +47,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.easing = this.materialEasing = this.crossfadeEasing = this.highlightEasing =
         "easeInOutQuad";
     this.background = "";
+    this.useEnvironmentAsBackground = true;
     this.noMasks = false;
     this.useMasks = true;
     this.maskOpacity = 0.4;
@@ -229,6 +230,9 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     this.background =
         assetOptions.background === undefined ? this.background : assetOptions.background;
 
+    this.useEnvironmentAsBackground = 
+        assetOptions.useEnvironmentAsBackground === undefined ? this.useEnvironmentAsBackground : assetOptions.useEnvironmentAsBackground;
+
     this.noMasks = renderOptions.noMasks === undefined ? this.noMasks : renderOptions.noMasks;
     this.useMasks = renderOptions.useMasks === undefined ? this.useMasks : renderOptions.useMasks;
     this.maskOpacity =
@@ -399,7 +403,7 @@ ripe.CSR.prototype._loadAssets = async function() {
     }
 
     if (this.background) {
-        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.background);
+        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.background, this.useEnvironmentAsBackground);
     }
 };
 

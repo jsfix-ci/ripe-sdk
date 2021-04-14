@@ -605,8 +605,10 @@ ripe.CSRAssetManager.prototype.getColorFromProperty = function(value) {
  * @param {WebGLRenderer} renderer The renderer that will generate the
  * equirectangular maps.
  * @param {String} environment The name of the environment to be loaded.
+ * @param {Boolean} useEnvironmentAsBackground Determines whether scene background
+ * is the environment texture.
  */
-ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer, environment) {
+ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer, environment, useEnvironmentAsBackground) {
     const pmremGenerator = new this.library.PMREMGenerator(renderer);
     const environmentMapPath = `${this.assetsPath}${this.owner.brand}/${this.owner.model}/${environment}`;
 
@@ -621,7 +623,9 @@ ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer
     const environmentTexture = pmremGenerator.fromEquirectangular(texture).texture;
 
     scene.environment = environmentTexture;
-    scene.background = environmentTexture;
+
+    if (useEnvironmentAsBackground)
+        scene.background = environmentTexture;
 
     // dispose unnecessary resources
     texture.dispose();
