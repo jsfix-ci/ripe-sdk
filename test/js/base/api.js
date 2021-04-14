@@ -63,6 +63,27 @@ describe("RipeAPI", function() {
                 initials_extra: {}
             });
         });
+
+        it("should be able to convert a query to spec with initials extra with one group", async () => {
+            const remote = ripe.RipeAPI();
+
+            const spec = remote._queryToSpec(
+                "brand=dummy&model=dummy&p=piping:leather_dmy:black&initials_extra=main:AA:black:style"
+            );
+            assert.deepStrictEqual(spec, {
+                brand: "dummy",
+                model: "dummy",
+                parts: {
+                    piping: {
+                        material: "leather_dmy",
+                        color: "black"
+                    }
+                },
+                initials: null,
+                engraving: null,
+                initials_extra: { main: { initials: "AA", engraving: "black:style" } }
+            });
+        });
     });
 
     describe("#_buildQuery()", function() {
@@ -317,6 +338,86 @@ describe("RipeAPI", function() {
             );
 
             assert.deepStrictEqual(result, ["left:pt\\:tp:", "right::"]);
+        });
+    });
+
+    describe("#_encodeMultipart()", function() {
+        beforeEach(function() {
+            if (typeof TextEncoder === "undefined" || typeof TextDecoder === "undefined") {
+                this.skip();
+            }
+        });
+
+        it("should be able to encode simple multipart values", async () => {
+            let contentType, body;
+
+            const remote = ripe.RipeAPI();
+
+            [contentType, body] = remote._encodeMultipart({
+                file: new TextEncoder("utf-8").encode("Hello World")
+            });
+
+            assert.strictEqual(
+                contentType,
+                "multipart/form-data; boundary=Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs"
+            );
+            assert.strictEqual(
+                new TextDecoder("utf-8").decode(body),
+                "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs\r\n" +
+                    'Content-Disposition: form-data; name="file"\r\n' +
+                    "\r\n" +
+                    "Hello World\r\n" +
+                    "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs--\r\n" +
+                    "\r\n"
+            );
+
+            [contentType, body] = remote._encodeMultipart({
+                file: ripe.ripe.FileTuple.fromString("Hello World", "hello.txt", "text/plain")
+            });
+
+            assert.strictEqual(
+                contentType,
+                "multipart/form-data; boundary=Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs"
+            );
+            assert.strictEqual(
+                new TextDecoder("utf-8").decode(body),
+                "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs\r\n" +
+                    'Content-Disposition: form-data; name="file"; filename="hello.txt"\r\n' +
+                    "Content-Type: text/plain\r\n" +
+                    "\r\n" +
+                    "Hello World\r\n" +
+                    "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs--\r\n" +
+                    "\r\n"
+            );
+
+            [contentType, body] = remote._encodeMultipart({
+                file: ripe.ripe.FileTuple.fromString("Hello World", "hello.txt", "text/plain"),
+                message: {
+                    data: new TextEncoder("utf-8").encode("Hello Message"),
+                    Header1: "header1-value",
+                    Header2: "header2-value"
+                }
+            });
+
+            assert.strictEqual(
+                contentType,
+                "multipart/form-data; boundary=Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs"
+            );
+            assert.strictEqual(
+                new TextDecoder("utf-8").decode(body),
+                "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs\r\n" +
+                    'Content-Disposition: form-data; name="file"; filename="hello.txt"\r\n' +
+                    "Content-Type: text/plain\r\n" +
+                    "\r\n" +
+                    "Hello World\r\n" +
+                    "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs\r\n" +
+                    "Header1: header1-value\r\n" +
+                    "Header2: header2-value\r\n" +
+                    "\r\n" +
+                    "Hello Message\r\n" +
+                    "--Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs--\r\n" +
+                    "\r\n"
+            );
         });
     });
 });

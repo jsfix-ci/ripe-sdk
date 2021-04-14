@@ -71,6 +71,7 @@ ripe.ConfiguratorPRC.prototype.init = function() {
     this._finalize = null;
     this._observer = null;
     this._ownerBinds = {};
+    this._pending = [];
 
     // registers for the selected part event on the owner
     // so that we can highlight the associated part
@@ -191,6 +192,8 @@ ripe.ConfiguratorPRC.prototype.updateOptions = async function(options, update = 
  * - 'callback' - The callback to be called at the end of the update.
  * - 'preload' - If it's to execute the pre-loading process.
  * - 'force' - If the updating operation should be forced (ignores signature).
+ * @returns {Boolean} If an effective operation has been performed by the
+ * update operation.
  */
 ripe.ConfiguratorPRC.prototype.update = async function(state, options = {}) {
     // in case the configurator is currently nor ready for an
@@ -268,10 +271,32 @@ ripe.ConfiguratorPRC.prototype.update = async function(state, options = {}) {
         // going to be considered the result of the operation
         result = await preloadPromise;
 
+        // flushes the complete set of operations that were waiting
+        // for the end of the pre-loading operation
+        await this.flushPending(true);
+    }
+
+    // verifies if the operation has been successful, it's considered
+    // successful in case there's a result and the result is not marked
+    // with the canceled flag (result of a cancel operation)
+    const success = result && !result.canceled;
+
+    if (success) {
+        // updates the signature of the loaded set of frames, so that for
+        // instance the cancel operation can be properly controlled avoiding
+        // the usage of extra resources and duplicated (cancel operations)
+        this.signatureLoaded = signature;
+
         // after the update operation is finished the loaded event
         // should be triggered indicating the end of the visual
         // operations for the current configuration on the configurator
         this.trigger("loaded");
+    } else {
+        // unsets both the signature and the unique value because the update
+        // operation has been marked as not successful so the visuals have
+        // not been properly updated
+        this.signature = null;
+        this.unique = null;
     }
 
     // returns the resulting value indicating if the loading operation
@@ -284,9 +309,11 @@ ripe.ConfiguratorPRC.prototype.update = async function(state, options = {}) {
  * in the child should be canceled this way a Configurator is not updated.
  *
  * @param {Object} options Set of optional parameters to adjust the Configurator.
+ * @returns {Boolean} If an effective operation has been performed or if
+ * instead no cancel logic was executed.
  */
-ripe.ConfiguratorPRC.prototype.cancel = async function(options = {}) {
-    if (this._buildSignature() === this.signature || "") return false;
+ripe.ConfiguratorPrc.prototype.cancel = async function(options = {}) {
+    if (this._buildSignature() === this.signatureLoaded || "") return false;
     if (this._finalize) this._finalize({ canceled: true });
     return true;
 };
@@ -337,6 +364,34 @@ ripe.ConfiguratorPRC.prototype.resize = async function(size) {
             force: true
         }
     );
+};
+
+/**
+ * Executes pending operations that were not performed so as
+ * to not conflict with the tasks already being executed.
+ *
+ * The main reason for collision is the pre-loading operation
+ * being executed (long duration operation).
+ *
+ * @param {Boolean} tail If only the last pending operation should
+ * be flushed, meaning that the others are discarded.
+ */
+ripe.ConfiguratorPrc.prototype.flushPending = async function(tail = false) {
+    const pending =
+        tail && this._pending.length > 0
+            ? [this._pending[this._pending.length - 1]]
+            : this._pending;
+    this._pending = [];
+    while (pending.length > 0) {
+        const { operation, args } = pending.shift();
+        switch (operation) {
+            case "changeFrame":
+                await this.changeFrame(...args);
+                break;
+            default:
+                break;
+        }
+    }
 };
 
 /**
@@ -406,8 +461,10 @@ ripe.ConfiguratorPRC.prototype.changeFrame = async function(frame, options = {})
     }
 
     // in case the safe mode is enabled and the current configuration is
-    // still under the preloading situation the change frame is ignored
+    // still under the preloading situation the change frame is saved and
+    // will be executed after the preloading
     if (safe && this.element.classList.contains("preloading")) {
+        this._pending = [{ operation: "changeFrame", args: [frame, options] }];
         return;
     }
 
@@ -998,17 +1055,6 @@ ripe.ConfiguratorPRC.prototype._updateConfig = async function(animate) {
     // be shown and triggers the changed frame event
     const frame = ripe.getFrameKey(this.element.dataset.view, this.element.dataset.position);
     this.trigger("changed_frame", frame);
-
-    // shows the new product with a crossfade effect
-    // and starts responding to updates again
-    this.update(
-        {},
-        {
-            preload: true,
-            animate: animate || this.configAnimate,
-            force: true
-        }
-    );
 };
 
 /**
@@ -1187,7 +1233,11 @@ ripe.ConfiguratorPRC.prototype._loadMask = function(maskImage, view, position, o
 /**
  * @ignore
  */
-ripe.ConfiguratorPRC.prototype._drawMask = function(maskImage) {
+ripe.ConfiguratorPrc.prototype._drawMask = function(maskImage) {
+    // in case the element is no longer available (possible due to async
+    // nature of execution) returns the control flow immediately
+    if (!this.element) return;
+
     const mask = this.element.querySelector(".mask");
     const maskContext = mask.getContext("2d");
     maskContext.clearRect(0, 0, mask.width, mask.height);
@@ -1313,24 +1363,35 @@ ripe.ConfiguratorPRC.prototype._preload = async function(useChain) {
             resolve(result);
         };
 
+        /**
+         * Callback function to be called whenever a new frame is
+         * pre-loaded (end of step), should be able to trigger the end
+         * of the loading if it represents the last image loading operation.
+         *
+         * @param {DOMElement} element The reference to the element that is
+         * considered to be the configurator.
+         */
         const mark = element => {
+            // in case the current index of operation (unique auto-increment
+            // value) is no longer the current in process then ignores this
+            // marking operation as it's considered outdated
             const _index = this.index;
             if (index !== _index) return;
             if (!this.element) return;
-
             // removes the preloading class from the image element
-            // and retrieves all the images still preloading,
-            element.classList.remove("preloading");
+            // this is considered the default operation
+            else element.classList.remove("preloading");
+
+            // retrieves all the images still preloading from the frames
+            // buffer to determine if this was the final image loading
             const framesBuffer = this.element.querySelector(".frames-buffer");
             const pending = framesBuffer.querySelectorAll("img.preloading") || [];
 
-            // if there are images preloading then adds the
-            // preloading class to the target element and
-            // prevents drag movements to avoid flickering
-            // else and if there are no images preloading and no
-            // frames yet to be preloaded then the preload
-            // is considered finished so drag movements are
-            // allowed again and the loaded event is triggered
+            // if there are still images preloading then adds the preloading
+            // class to the target element and prevents drag movements to
+            // avoid flickering else and if there are no images preloading and no
+            // frames yet to be preloaded then the preload is considered finished
+            // so drag movements are allowed again and the loaded event is triggered
             if (pending.length > 0) {
                 this.element.classList.add("preloading");
                 this.element.classList.add("no-drag");
@@ -1715,12 +1776,13 @@ ripe.ConfiguratorPRC.prototype._getCanvasIndex = function(canvas, x, y) {
  *
  * @returns {String} The unique signature for the configurator state.
  */
-ripe.ConfiguratorPRC.prototype._buildSignature = function() {
-    const format = this.element.dataset.format || this.format;
-    const size = this.element.dataset.size || this.size;
-    const width = size || this.element.dataset.width || this.width;
-    const height = size || this.element.dataset.height || this.height;
-    const backgroundColor = this.element.dataset.background_color || this.backgroundColor;
+ripe.ConfiguratorPrc.prototype._buildSignature = function() {
+    const dataset = this.element ? this.element.dataset : {};
+    const format = dataset.format || this.format;
+    const size = dataset.size || this.size;
+    const width = size || dataset.width || this.width;
+    const height = size || dataset.height || this.height;
+    const backgroundColor = dataset.background_color || this.backgroundColor;
     return `${this.owner._getQuery({ full: false })}&width=${String(width)}&height=${String(
         height
     )}&format=${String(format)}&background=${String(backgroundColor)}`;

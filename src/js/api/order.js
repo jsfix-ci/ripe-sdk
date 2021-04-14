@@ -134,8 +134,339 @@ ripe.Ripe.prototype.deleteOrderP = function(number, options) {
     });
 };
 
+ripe.Ripe.prototype.attachmentsOrder = function(number, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/attachments`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.attachmentsOrderP = function(number, options) {
+    return new Promise((resolve, reject) => {
+        this.attachmentsOrder(number, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.createAttachmentOrder = function(number, file, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/attachments`;
+    options = Object.assign(options, {
+        url: url,
+        method: "POST",
+        dataM: {
+            file: file
+        },
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.createAttachmentOrderP = function(number, file, options) {
+    return new Promise((resolve, reject) => {
+        this.createAttachmentOrder(number, file, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.logOrder = function(number, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/log`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.logOrderP = function(number, options) {
+    return new Promise((resolve, reject) => {
+        this.logOrder(number, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.statesOrder = function(number, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.statesOrderP = function(number, options) {
+    return new Promise((resolve, reject) => {
+        this.statesOrder(number, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateOrder = function(number, stateId, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateOrderP = function(number, stateId, options) {
+    return new Promise((resolve, reject) => {
+        this.stateOrder(number, stateId, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateChatOrder = function(number, stateId, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/chat`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true,
+        cached: false
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateChatOrderP = function(number, stateId, options) {
+    return new Promise((resolve, reject) => {
+        this.stateChatOrder(number, stateId, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateChatLinesOrder = function(number, stateId, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/chat/lines`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true,
+        cached: false
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateChatLinesOrderP = function(number, stateId, options) {
+    return new Promise((resolve, reject) => {
+        this.stateChatOrder(number, stateId, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateChatLinesCountOrder = function(number, stateId, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/chat/lines/count`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true,
+        cached: false
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateChatLinesCountOrderP = function(number, stateId, options) {
+    return new Promise((resolve, reject) => {
+        this.stateChatLinesCountOrder(number, stateId, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateChatCreateLineOrder = function(
+    number,
+    stateId,
+    contents,
+    options,
+    callback
+) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/chat/lines`;
+    options = Object.assign(options, {
+        url: url,
+        method: "POST",
+        params: {
+            contents: contents
+        },
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateChatCreateLineOrderP = function(number, stateId, contents, options) {
+    return new Promise((resolve, reject) => {
+        this.stateChatCreateLineOrder(
+            number,
+            stateId,
+            contents,
+            options,
+            (result, isValid, request) => {
+                isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+            }
+        );
+    });
+};
+
+ripe.Ripe.prototype.stateAttachmentsOrder = function(number, stateId, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/attachments`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true,
+        cached: false
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateAttachmentsOrderP = function(number, stateId, options) {
+    return new Promise((resolve, reject) => {
+        this.stateAttachmentsOrder(number, stateId, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateAttachmentsCountOrder = function(number, stateId, options, callback) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/attachments/count`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true,
+        cached: false
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateAttachmentsCountOrderP = function(number, stateId, options) {
+    return new Promise((resolve, reject) => {
+        this.stateAttachmentsCountOrder(number, stateId, options, (result, isValid, request) => {
+            isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+        });
+    });
+};
+
+ripe.Ripe.prototype.stateCreateAttachmentOrder = function(
+    number,
+    stateId,
+    file,
+    options,
+    callback
+) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/attachments`;
+    options = Object.assign(options, {
+        url: url,
+        method: "POST",
+        dataM: {
+            file: file
+        },
+        auth: true
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateCreateAttachmentOrderP = function(number, stateId, file, options) {
+    return new Promise((resolve, reject) => {
+        this.stateCreateAttachmentOrder(
+            number,
+            stateId,
+            file,
+            options,
+            (result, isValid, request) => {
+                isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+            }
+        );
+    });
+};
+
+ripe.Ripe.prototype.stateAttachmentOrder = function(
+    number,
+    stateId,
+    attachmentName,
+    options,
+    callback
+) {
+    callback = typeof options === "function" ? options : callback;
+    options = typeof options === "function" || options === undefined ? {} : options;
+    const url = `${this.url}orders/${number}/states/${stateId}/attachments/${attachmentName}`;
+    options = Object.assign(options, {
+        url: url,
+        method: "GET",
+        auth: true,
+        cached: false
+    });
+    options = this._build(options);
+    return this._cacheURL(options.url, options, callback);
+};
+
+ripe.Ripe.prototype.stateAttachmentOrderP = function(number, stateId, attachmentName, options) {
+    return new Promise((resolve, reject) => {
+        this.stateAttachmentOrder(
+            number,
+            stateId,
+            attachmentName,
+            options,
+            (result, isValid, request) => {
+                isValid ? resolve(result) : reject(new ripe.RemoteError(request, null, result));
+            }
+        );
+    });
+};
+
 /**
- * @ignore
+ * Searches for orders using the filter string and the options that
+ * are provided.
+ *
+ * @param {String} filterString An unstructured string to be used in the
+ * orders search operation.
+ * @param {Object} options An object of options to configure the request.
+ * @param {Function} callback Function with the result of the request.
+ * @returns {XMLHttpRequest} The XMLHttpRequest instance of the API request.
  */
 ripe.Ripe.prototype.searchOrders = function(filterString, options, callback) {
     callback = typeof options === "function" ? options : callback;
@@ -156,7 +487,13 @@ ripe.Ripe.prototype.searchOrders = function(filterString, options, callback) {
 };
 
 /**
- * @ignore
+ * Searches for orders using the filter string and the options that
+ * are provided.
+ *
+ * @param {String} filterString An unstructured string to be used in the
+ * orders search operation.
+ * @param {Object} options An object of options to configure the request.
+ * @returns {Promise} The result of the order deletion.
  */
 ripe.Ripe.prototype.searchOrdersP = function(filterString, options) {
     return new Promise((resolve, reject) => {
@@ -582,7 +919,9 @@ ripe.Ripe.prototype._getOrderReportPNGURL = function(number, key, options) {
  * @see {link https://docs.platforme.com/#order-endpoints-import}
  */
 ripe.Ripe.prototype._importOrder = function(ffOrderId, options = {}) {
+    const type = options.type === undefined ? null : options.type;
     const brand = options.brand === undefined ? this.brand : options.brand;
+    const factory = options.factory === undefined ? null : options.factory;
     const model = options.model === undefined ? this.model : options.model;
     const variant = options.variant === undefined ? this.variant : options.variant;
     const parts = options.parts === undefined ? this.parts : options.parts;
@@ -600,9 +939,14 @@ ripe.Ripe.prototype._importOrder = function(ffOrderId, options = {}) {
         options.product_id === undefined && options.productId === undefined
             ? null
             : options.product_id || options.productId;
-    const currency = options.currency === undefined ? null : options.currency;
     const country = options.country === undefined ? null : options.country;
+    const price = options.price === undefined ? null : options.price;
+    const currency = options.currency === undefined ? null : options.currency;
+    const deliveryTime = options.deliveryTime === undefined ? null : options.deliveryTime;
     const meta = options.meta === undefined ? null : options.meta;
+    const description = options.description === undefined ? null : options.description;
+    const notes = options.notes === undefined ? null : options.notes;
+    const images = options.images === undefined ? null : options.images;
 
     const url = `${this.url}orders/import`;
     const contents = {
@@ -611,6 +955,8 @@ ripe.Ripe.prototype._importOrder = function(ffOrderId, options = {}) {
         parts: parts,
         size: size
     };
+
+    if (factory) contents.factory = factory;
     if (variant) contents.variant = variant;
     if (productId) contents.product_id = productId;
     if (gender) contents.gender = gender;
@@ -620,14 +966,21 @@ ripe.Ripe.prototype._importOrder = function(ffOrderId, options = {}) {
         contents.initials = initials;
         contents.engraving = engraving;
     }
+    if (deliveryTime) contents.delivery_time = deliveryTime;
+    if (images) contents.images = images;
+    if (description) contents.description = description;
 
     const params = {
         ff_order_id: ffOrderId,
         contents: JSON.stringify(contents)
     };
+    if (type) params.type = type;
     if (country) params.country = country;
+    if (price) params.price = price;
     if (currency) params.currency = currency;
     if (meta) params.meta = meta;
+    if (meta) params.meta = meta;
+    if (notes) params.notes = notes;
     if (notify) params.notify = notify;
     if (pending) params.pending = pending;
 

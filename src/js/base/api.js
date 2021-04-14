@@ -297,6 +297,7 @@ ripe.Ripe.prototype._requestURLFetch = function(url, options, callback) {
     const headers = options.headers || {};
     let data = options.data || null;
     const dataJ = options.dataJ || null;
+    const dataM = options.dataM || null;
     let contentType = options.contentType || null;
     const validCodes = options.validCodes || [200];
     const credentials = options.credentials || "omit";
@@ -312,6 +313,9 @@ ripe.Ripe.prototype._requestURLFetch = function(url, options, callback) {
         data = JSON.stringify(dataJ);
         url += separator + query;
         contentType = "application/json";
+    } else if (dataM !== null) {
+        url += separator + query;
+        [contentType, data] = this._encodeMultipart(dataM, contentType, true);
     } else {
         data = query;
         contentType = "application/x-www-form-urlencoded";
@@ -367,6 +371,7 @@ ripe.Ripe.prototype._requestURLLegacy = function(url, options, callback) {
     const headers = options.headers || {};
     let data = options.data || null;
     const dataJ = options.dataJ || null;
+    const dataM = options.dataM || null;
     let contentType = options.contentType || null;
     const timeout = options.timeout || 10000;
     const timeoutConnect = options.timeoutConnect || parseInt(timeout / 2);
@@ -384,6 +389,8 @@ ripe.Ripe.prototype._requestURLLegacy = function(url, options, callback) {
         data = JSON.stringify(dataJ);
         url += separator + query;
         contentType = "application/json";
+    } else if (dataM !== null) {
+        throw new Error("Multipart is not supported using legacy");
     } else {
         data = query;
         contentType = "application/x-www-form-urlencoded";
@@ -901,6 +908,14 @@ ripe.Ripe.prototype._getSwatchOptions = function(options = {}) {
         params.format = options.format;
     }
 
+    if (options.retina !== undefined && options.retina !== null) {
+        params.retina = options.retina ? "1" : "0";
+    }
+
+    if (options.variant !== undefined && options.variant !== null) {
+        params.variant = options.variant;
+    }
+
     const url = `${this.url}swatch`;
 
     options = Object.assign(options, {
@@ -1087,6 +1102,7 @@ ripe.Ripe.prototype._queryToSpec = function(query) {
     const engraving = options.engraving || null;
     let initialsExtra = options.initials_extra || [];
     let tuples = options.p || [];
+    initialsExtra = Array.isArray(initialsExtra) ? initialsExtra : [initialsExtra];
     initialsExtra = this._parseExtraS(initialsExtra);
     tuples = Array.isArray(tuples) ? tuples : [tuples];
     const parts = this._tuplesToParts(tuples);
@@ -1210,4 +1226,79 @@ ripe.Ripe.prototype._generateExtraS = function(extra, sort = true, minimize = tr
         extraS.push(extraI);
     }
     return extraS;
+};
+
+ripe.Ripe.prototype._encodeMultipart = function(fields, mime = null, doseq = false) {
+    mime = mime || "multipart/form-data";
+
+    const boundary = this._createBoundary(fields, undefined, doseq);
+
+    const encoder = new TextEncoder("utf-8");
+
+    const buffer = [];
+
+    for (let [key, values] of Object.entries(fields)) {
+        const isList = doseq && Array.isArray(values);
+        values = isList ? values : [values];
+
+        for (let value of values) {
+            if (value === null) continue;
+
+            let header;
+
+            if (
+                typeof value === "object" &&
+                !(value instanceof Array) &&
+                value.constructor !== Uint8Array
+            ) {
+                const headerL = [];
+                let data = null;
+                for (const [key, item] of Object.entries(value)) {
+                    if (key === "data") data = item;
+                    else headerL.push(`${key}: ${item}`);
+                }
+                value = data;
+                header = headerL.join("\r\n");
+            } else if (value instanceof Array) {
+                let name = null;
+                let contents = null;
+                let contentTypeD = null;
+                if (value.length === 2) [name, contents] = value;
+                else [name, contentTypeD, contents] = value;
+                header = `Content-Disposition: form-data; name="${key}"; filename="${name}"`;
+                if (contentTypeD) header += `\r\nContent-Type: ${contentTypeD}`;
+                value = contents;
+            } else {
+                header = `Content-Disposition: form-data; name="${key}"`;
+            }
+
+            buffer.push(encoder.encode("--" + boundary + "\r\n"));
+            buffer.push(encoder.encode(header + "\r\n"));
+            buffer.push(encoder.encode("\r\n"));
+            buffer.push(value);
+            buffer.push(encoder.encode("\r\n"));
+        }
+    }
+
+    buffer.push(encoder.encode("--" + boundary + "--\r\n"));
+    buffer.push(encoder.encode("\r\n"));
+    const body = this._joinBuffer(buffer);
+    const contentType = `${mime}; boundary=${boundary}`;
+
+    return [contentType, body];
+};
+
+ripe.Ripe.prototype._createBoundary = function(fields, size = 32, doseq = false) {
+    return "Vq2xNWWHbmWYF644q9bC5T2ALtj5CynryArNQRXGYsfm37vwFKMNsqPBrpPeprFs";
+};
+
+ripe.Ripe.prototype._joinBuffer = function(bufferArray) {
+    const bufferSize = bufferArray.map(item => item.byteLength).reduce((a, v) => a + v, 0);
+    const buffer = new Uint8Array(bufferSize);
+    let offset = 0;
+    for (const item of bufferArray) {
+        buffer.set(item, offset);
+        offset += item.byteLength;
+    }
+    return buffer;
 };

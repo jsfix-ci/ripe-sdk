@@ -16,7 +16,7 @@ if (
  * The version of the RIPE SDK currently in load, should
  * be in sync with the package information.
  */
-ripe.VERSION = "1.21.0";
+ripe.VERSION = "1.25.6";
 
 /**
  * Object that contains global (static) information to be used by
@@ -127,7 +127,7 @@ ripe.Ripe.prototype.init = async function(brand = null, model = null, options = 
 
     // in case the guess URL mode is active then a remote call should be
     // performed in order to take decisions on the proper production URL
-    if (this.guessUrl) await this._guessUrl();
+    if (this.guessUrl) await this._guessURL();
 
     // iterates over all the plugins present in the options (meant
     // to be registered) and adds them to the current instance
@@ -444,12 +444,14 @@ ripe.Ripe.prototype.config = async function(brand, model, options = {}) {
         // that others may use it freely (cache mechanism)
         this.loadedConfig = await this.getConfigP();
     } catch (err) {
+        // builds the base message taking into consideration if the
+        // version has been explicity defined
+        let message = `Not possible to get configuration for '${brand}' and '${model}'`;
+        if (this.options.version) message += ` version ${this.options.version}`;
+
         // raises a new error indicating the real cause for the new
         // error being thrown under the current execution logic
-        throw new ripe.OperationalError(
-            `Not possible to get configuration for '${brand}' and '${model}'`,
-            err
-        );
+        throw new ripe.OperationalError(message, err);
     }
 
     // creates a "new" choices from the provided configuration for the
@@ -613,6 +615,7 @@ ripe.Ripe.prototype.setStructure = async function(structure, safe = true) {
  *  - 'locale' - The locale to be used by default when localizing values.
  *  - 'flag' - A specific attribute of the model.
  *  - 'format' - The format of the image that is going to be retrieved in case of image visual and interactive.
+ *  - 'size' - The default size in pixels to be used by children for composition.
  *  - 'backgroundColor' - The background color in RGB format to be used for images.
  *  - 'guess' - If the optimistic guess mode should be used for config resolution (internal).
  *  - 'guessUrl' - If base production URL should be guessed using GeoIP information.
@@ -639,6 +642,7 @@ ripe.Ripe.prototype.setOptions = function(options = {}) {
     this.flag = this.options.flag || null;
     this.format = this.options.format || null;
     this.formatBase = this.options.format || null;
+    this.size = this.options.size || null;
     this.backgroundColor = this.options.backgroundColor || "";
     this.guess = this.options.guess === undefined ? undefined : this.options.guess;
     this.guessUrl = this.options.guessUrl === undefined ? undefined : this.options.guessUrl;
@@ -702,7 +706,7 @@ ripe.Ripe.prototype.setOptions = function(options = {}) {
  * @param {String} material The material to change to.
  * @param {String} color The color to change to.
  * @param {Boolean} events If the parts events should be triggered (defaults to 'true').
- * @param {Object} options The options to be used in the set part operations (for internal use)..
+ * @param {Object} options The options to be used in the set part operations (for internal use).
  */
 ripe.Ripe.prototype.setPart = async function(part, material, color, events = true, options = {}) {
     const runUpdate = options.runUpdate === undefined ? true : options.runUpdate;
@@ -778,10 +782,18 @@ ripe.Ripe.prototype.setParts = async function(update, events = true, options = {
  * @param {String} engraving The type of engraving to be set.
  * @param {Boolean} events If the events associated with the initials
  * change should be triggered.
+ * @param {Boolean} override If the options value should be override meaning
+ * that further config updates will have this new initials set.
  * @param {Object} params Extra parameters that control the behaviour of
  * the set initials operation.
  */
-ripe.Ripe.prototype.setInitials = async function(initials, engraving, events = true, params = {}) {
+ripe.Ripe.prototype.setInitials = async function(
+    initials,
+    engraving,
+    events = true,
+    override = false,
+    params = {}
+) {
     if (typeof initials === "object") {
         events = engraving === undefined ? true : engraving;
         const result = await this.setInitialsExtra(initials, events);
@@ -813,6 +825,14 @@ ripe.Ripe.prototype.setInitials = async function(initials, engraving, events = t
 
     if (!this.initials && this.engraving) {
         throw new Error("Engraving set without initials");
+    }
+
+    // in case the override flag is set then the options fields
+    // are also update with the new initials values
+    if (override) {
+        this.options.initials = this.initials;
+        this.options.engraving = this.engraving;
+        this.options.initialsExtra = this.initialsExtra;
     }
 
     // in case the events should not be triggered then returns
@@ -852,10 +872,17 @@ ripe.Ripe.prototype.setInitials = async function(initials, engraving, events = t
  * initials and engraving for all the initial groups.
  * @param {Boolean} events If the events associated with the changing of
  * the initials (extra) should be triggered.
+ * @param {Boolean} override If the options value should be override meaning
+ * that further config updates will have this new initials extra set.
  * @param {Object} params Extra parameters that control the behaviour of
  * the set initials operation.
  */
-ripe.Ripe.prototype.setInitialsExtra = async function(initialsExtra, events = true, params = {}) {
+ripe.Ripe.prototype.setInitialsExtra = async function(
+    initialsExtra,
+    events = true,
+    override = false,
+    params = {}
+) {
     const groups = Object.keys(initialsExtra);
     const isEmpty = groups.length === 0;
     const mainGroup = groups.includes("main") ? "main" : groups[0];
@@ -893,6 +920,14 @@ ripe.Ripe.prototype.setInitialsExtra = async function(initialsExtra, events = tr
         if (!value.initials && value.engraving) {
             throw new Error(`Engraving set without initials for group ${key}`);
         }
+    }
+
+    // in case the override flag is set then the options fields
+    // are also update with the new initials values
+    if (override) {
+        this.options.initials = this.initials;
+        this.options.engraving = this.engraving;
+        this.options.initialsExtra = this.initialsExtra;
     }
 
     if (!events) return this;
@@ -1319,10 +1354,12 @@ ripe.Ripe.prototype.update = async function(state = null, options = {}, children
     // possible by any of the child elements
     await this.cancel(options, children);
 
-    // iterates waiting for all the pending promises for update operations
+    // runs the waiting for all the pending promises for update operations
     // so that we can safely run the new update promise after all the other
-    // previously registered ones are "flushed"
-    while (this.updatePromise) await this.updatePromise;
+    // previously registered ones are "flushed", after te update the promise
+    // reference is forced to null to indicate that no more promises exist
+    if (this.updatePromise) await this.updatePromise;
+    this.updatePromise = null;
 
     // in case the current update operation is no longer the latest one then
     // there's no need to continue with the operation
@@ -1334,7 +1371,9 @@ ripe.Ripe.prototype.update = async function(state = null, options = {}, children
         const result = await this.updatePromise;
         return result;
     } finally {
-        this.updatePromise = null;
+        if (!options.noAwaitLayout) {
+            this.updatePromise = null;
+        }
     }
 };
 
@@ -1554,7 +1593,7 @@ ripe.Ripe.prototype.normalizeParts = function(parts) {
 /**
  * @ignore
  */
-ripe.Ripe.prototype._guessUrl = async function() {
+ripe.Ripe.prototype._guessURL = async function() {
     const result = await this.geoResolveP();
     const country = result.country ? result.country.iso_code : null;
     switch (country) {
@@ -1781,7 +1820,7 @@ ripe.Ripe.prototype._handleCtx = function(result) {
     this.parts = Object.assign(this.parts, result.parts);
 
     if (result.initials && !ripe.equal(result.initials, this.initialsExtra)) {
-        this.setInitialsExtra(result.initials, true, { noRemote: true });
+        this.setInitialsExtra(result.initials, true, false, { noRemote: true });
     }
 
     if (result.choices && !ripe.equal(result.choices, this.choices)) {
@@ -1801,7 +1840,7 @@ ripe.Ripe.prototype._handleCtx = function(result) {
  * @param {Object} loadedConfig The configuration structure that
  * has just been loaded.
  * @returns {Object} The state object that can be used to control
- * the state of parts, materials and colors;
+ * the state of parts, materials and colors.
  */
 ripe.Ripe.prototype._toChoices = function(loadedConfig) {
     const choices = {};
