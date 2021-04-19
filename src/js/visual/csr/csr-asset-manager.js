@@ -96,7 +96,7 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
 
     // sets the materials for the first time, if the model uses build
     if (this.usesBuild) {
-        await this.setMaterials(this.owner.parts);
+        await this.setMaterials(this.owner.parts, true, true);
         // loads the complete set of animations defined in the
         // model configuration
 
@@ -110,6 +110,9 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
     }
 
     this.csr.initialize();
+
+    // load high resolution textures
+    this.setMaterials(this.owner.parts, true, false);
 };
 
 /**
@@ -421,8 +424,14 @@ ripe.CSRAssetManager.prototype.applyMaterial = function(partName, newMaterial) {
  * to a material.
  * @param {Boolean} autoApply Decides if applies the materials or just
  * loads all the textures.
+ * @param {Boolean} isLowRes Determines whether the path is for the low or high
+ * resolution maps.
  */
-ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = true) {
+ripe.CSRAssetManager.prototype.setMaterials = async function(
+    parts,
+    autoApply = true,
+    isLowRes = false
+) {
     for (const part in parts) {
         if (part === "shadow") {
             continue;
@@ -435,9 +444,9 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
 
         // if material does not exist, then use the default one
         if (!this.modelConfig.assets.materials[part][material]) {
-            newMaterial = await this.loadMaterial(part, "default");
+            newMaterial = await this.loadMaterial(isLowRes, part, "default");
         } else {
-            newMaterial = await this.loadMaterial(part, material, color);
+            newMaterial = await this.loadMaterial(isLowRes, part, material, color);
         }
 
         // in case no auto apply is request returns the control flow
@@ -459,13 +468,17 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(parts, autoApply = 
             continue;
         }
 
-        const newMaterial = await this.loadMaterial(part, "default");
+        const newMaterial = await this.loadMaterial(isLowRes, part, "default");
 
         this.applyMaterial(part, newMaterial);
     }
 
     // Updates the base colors for all the materials currently being used
     this._storePartsColors();
+
+    if (!isLowRes) {
+        this.csr.needsRenderUpdate = true;
+    }
 };
 
 /**
@@ -494,11 +507,13 @@ ripe.CSRAssetManager.prototype._storePartsColors = function() {
  * Returns a material, containing all the maps specified in the config.
  * Stores the textures in memory to allow for faster material change.
  *
+ * @param {Boolean} isLowRes Determines whether the path is for the low or high
+ * resolution maps.
  * @param {String} part The part that will receive the new material
  * @param {String} type The type of material, such as "python" or "nappa".
  * @param {String} color The color of the material.
  */
-ripe.CSRAssetManager.prototype.loadMaterial = async function(part, type, color) {
+ripe.CSRAssetManager.prototype.loadMaterial = async function(isLowRes = false, part, type, color) {
     let materialConfig;
     let newMaterial;
 
@@ -537,7 +552,18 @@ ripe.CSRAssetManager.prototype.loadMaterial = async function(part, type, color) 
     for (const prop in materialConfig) {
         // if it's a map, loads and applies the texture
         if (prop.includes("map") || prop.includes("Map")) {
-            const mapPath = basePath + materialConfig[prop];
+            let finalPath =
+                materialConfig[prop].split(".")[0] + "_hr." + materialConfig[prop].split(".")[1];
+
+            if (isLowRes) {
+                finalPath =
+                    materialConfig[prop].split(".")[0] +
+                    "_lr." +
+                    materialConfig[prop].split(".")[1];
+            }
+
+            const mapPath = basePath + finalPath;
+
             if (!this.loadedTextures[mapPath]) {
                 const texture = await new Promise((resolve, reject) => {
                     this.textureLoader.load(mapPath, function(loadedTexture) {
@@ -608,7 +634,12 @@ ripe.CSRAssetManager.prototype.getColorFromProperty = function(value) {
  * @param {Boolean} useEnvironmentAsBackground Determines whether scene background
  * is the environment texture.
  */
-ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer, environment, useEnvironmentAsBackground) {
+ripe.CSRAssetManager.prototype.setupEnvironment = async function(
+    scene,
+    renderer,
+    environment,
+    useEnvironmentAsBackground
+) {
     const pmremGenerator = new this.library.PMREMGenerator(renderer);
     const environmentMapPath = `${this.assetsPath}${this.owner.brand}/${this.owner.model}/${environment}`;
 
@@ -624,8 +655,7 @@ ripe.CSRAssetManager.prototype.setupEnvironment = async function(scene, renderer
 
     scene.environment = environmentTexture;
 
-    if (useEnvironmentAsBackground)
-        scene.background = environmentTexture;
+    if (useEnvironmentAsBackground) scene.background = environmentTexture;
 
     // dispose unnecessary resources
     texture.dispose();
