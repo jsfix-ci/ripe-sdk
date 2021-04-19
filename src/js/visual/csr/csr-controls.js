@@ -421,11 +421,12 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
 
     // we subtract to have a more intuitive feel
     if (this.minHorAngle < 0 && this.maxHorAngle > 359) this.targetRotation.x -= newX;
-    else
-        { this.targetRotation.x = Math.min(
+    else {
+        this.targetRotation.x = Math.min(
             Math.max(this.targetRotation.x - newX, this.minHorAngle),
             this.maxHorAngle
-        ); }
+        );
+    }
 
     this.targetRotation.y = this.validVericalAngle(this.targetRotation.y + newY);
 

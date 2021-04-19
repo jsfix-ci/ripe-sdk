@@ -4,7 +4,7 @@
  */
 const FACES = ["side", "top", "front"];
 
-window.onload = function() {
+window.onload = function () {
     const elementCSR = document.getElementById("configurator-csr");
     const elementPRC = document.getElementById("configurator-prc");
     const _body = document.querySelector("body");
@@ -46,7 +46,7 @@ window.onload = function() {
         errorPopup: true
     });
 
-    const randomize = async function() {
+    const randomize = async function () {
         const parts = [];
         for (const key in partsMap) {
             const triplets = partsMap[key];
@@ -57,7 +57,7 @@ window.onload = function() {
         await ripe.setParts(parts, true, { partEvents: false });
     };
 
-    const unique = function() {
+    const unique = function () {
         let count = 1;
         for (const key in partsMap) {
             const triplets = partsMap[key];
@@ -66,7 +66,7 @@ window.onload = function() {
         return count;
     };
 
-    const beautify = function(value) {
+    const beautify = function (value) {
         const buffer = [];
         const parts = value.split("_");
         for (let index = 0; index < parts.length; index++) {
@@ -76,7 +76,7 @@ window.onload = function() {
         return buffer.join(" ");
     };
 
-    const bestFace = function(config) {
+    const bestFace = function (config) {
         const faces = config.faces || [];
         let bestFace = null;
         for (let index = 0; index < FACES.length; index++) {
@@ -93,7 +93,7 @@ window.onload = function() {
         return faces.length > 0 ? faces[0] : null;
     };
 
-    const init = function(instance) {
+    const init = function (instance) {
         initBase(instance);
         initHeader(instance);
         initOAuth(instance);
@@ -101,10 +101,10 @@ window.onload = function() {
         initInitials(instance);
     };
 
-    const initBase = function() {
+    const initBase = function () {
         // registers for the key down event on the global document element
         // to listen to some of the key strokes (global operations)
-        document.addEventListener("keydown", async function(event) {
+        document.addEventListener("keydown", async function (event) {
             if (event.ctrlKey && event.keyCode === 90) {
                 await ripe.undo();
             }
@@ -115,25 +115,25 @@ window.onload = function() {
         });
     };
 
-    const initHeader = function() {
+    const initHeader = function () {
         const setPart = document.getElementById("set-part");
         const setMessage = document.getElementById("set-message");
         const getPrice = document.getElementById("get-price");
         const getCombinations = document.getElementById("get-combinations");
 
         setPart &&
-            setPart.addEventListener("click", function() {
+            setPart.addEventListener("click", function () {
                 randomize();
             });
 
         setMessage &&
-            setMessage.addEventListener("click", function() {
+            setMessage.addEventListener("click", function () {
                 alert("Not implemented");
             });
 
         getPrice &&
-            getPrice.addEventListener("click", function() {
-                ripe.getPrice(function(value) {
+            getPrice.addEventListener("click", function () {
+                ripe.getPrice(function (value) {
                     if (value) {
                         alert(String(value.total.price_final) + " " + value.total.currency);
                     } else {
@@ -143,8 +143,8 @@ window.onload = function() {
             });
 
         getCombinations &&
-            getCombinations.addEventListener("click", function() {
-                ripe.getCombinations(function(combinations) {
+            getCombinations.addEventListener("click", function () {
+                ripe.getCombinations(function (combinations) {
                     alert(
                         "There are <strong>" +
                             String(combinations.length.formatMoney(0)) +
@@ -155,15 +155,15 @@ window.onload = function() {
                 });
             });
 
-        ripe.bind("error", function(error, description) {
+        ripe.bind("error", function (error, description) {
             alert(error);
         });
 
-        ripe.bind("message", function(name, value) {
+        ripe.bind("message", function (name, value) {
             alert(name + " - " + value);
         });
 
-        ripe.bind("price", function(value) {
+        ripe.bind("price", function (value) {
             const price = document.getElementById("price");
             if (!value || !value.total) {
                 price.innerHTML = "N/A";
@@ -172,7 +172,7 @@ window.onload = function() {
             price.innerHTML = value.total.price_final + " " + value.total.currency;
         });
 
-        ripe.bind("combinations", function(value) {
+        ripe.bind("combinations", function (value) {
             for (let index = 0; index < value.length; index++) {
                 const triplet = value[index];
                 const part = triplet[0];
@@ -184,13 +184,13 @@ window.onload = function() {
         });
     };
 
-    const initOAuth = function() {
+    const initOAuth = function () {
         let oauthLogin = document.getElementById("oauth-login");
         let oauthLogout = document.getElementById("oauth-logout");
         let oauthOperation = document.getElementById("oauth-operation");
 
         oauthLogin &&
-            oauthLogin.addEventListener("click", function() {
+            oauthLogin.addEventListener("click", function () {
                 ripe.oauth({
                     clientId: clientId,
                     clientSecret: clientSecret,
@@ -200,13 +200,13 @@ window.onload = function() {
             });
 
         oauthLogout &&
-            oauthLogout.addEventListener("click", function() {
+            oauthLogout.addEventListener("click", function () {
                 ripe.unauth();
             });
 
         oauthOperation &&
-            oauthOperation.addEventListener("click", function() {
-                ripe.getOrders(function(result) {
+            oauthOperation.addEventListener("click", function () {
+                ripe.getOrders(function (result) {
                     alert("Retrieved " + String(result.length) + " orders");
                 });
             });
@@ -223,20 +223,20 @@ window.onload = function() {
             ripe.oauth();
         }
 
-        ripe.bind("auth", function() {
+        ripe.bind("auth", function () {
             oauthLogin.style.display = "none";
             oauthLogout.style.display = "block";
             oauthOperation.style.display = "block";
         });
 
-        ripe.bind("unauth", function() {
+        ripe.bind("unauth", function () {
             oauthLogin.style.display = "block";
             oauthLogout.style.display = "none";
             oauthOperation.style.display = "none";
         });
     };
 
-    const initConfigurator = function() {
+    const initConfigurator = function () {
         // gathers the reference to the top level elements that are
         // going to be used for proper event handling registration
         const toggleRenderMode = document.getElementById("toggle-render");
@@ -245,11 +245,11 @@ window.onload = function() {
         // complete configuration of the product and be able
         // to define the visible frames and apply restrictions
         const caller = ripe.loadedConfig
-            ? function(callback) {
+            ? function (callback) {
                   callback(ripe.loadedConfig);
               }
             : ripe.getConfig;
-        caller(function(result) {
+        caller(function (result) {
             const frame0 = document.getElementById("frame-0");
             const frame6 = document.getElementById("frame-6");
             const frameTop = document.getElementById("frame-top");
@@ -290,7 +290,7 @@ window.onload = function() {
                 });
             }
 
-            frame0.addEventListener("click", function() {
+            frame0.addEventListener("click", function () {
                 if (result.frames > 9) {
                     configuratorCSR.changeFrame("side-9", {
                         revolutionDuration: 500
@@ -307,7 +307,7 @@ window.onload = function() {
                     });
                 }
             });
-            frame6.addEventListener("click", function() {
+            frame6.addEventListener("click", function () {
                 configuratorCSR.changeFrame("side-6", {
                     revolutionDuration: 500
                 });
@@ -315,7 +315,7 @@ window.onload = function() {
                     revolutionDuration: 500
                 });
             });
-            frameTop.addEventListener("click", function() {
+            frameTop.addEventListener("click", function () {
                 configuratorCSR.changeFrame("top-0", {
                     duration: 250
                 });
@@ -323,7 +323,7 @@ window.onload = function() {
                     duration: 250
                 });
             });
-            frameFront.addEventListener("click", function() {
+            frameFront.addEventListener("click", function () {
                 configuratorPRC.changeFrame("front-0", {
                     duration: 250
                 });
@@ -333,11 +333,11 @@ window.onload = function() {
             });
 
             image &&
-                image.bind("loaded", function() {
+                image.bind("loaded", function () {
                     console.log("frame-0 loaded");
                 });
 
-            setTimeout(function() {
+            setTimeout(function () {
                 if (result.frames > 9) {
                     image && image.setFrame("side-9");
                 }
@@ -420,7 +420,7 @@ window.onload = function() {
                 }
             });
 
-            configuratorPRC.bind("loaded", function() {
+            configuratorPRC.bind("loaded", function () {
                 if (configuratorPRC.isFirst) configuratorPRC.isFirst = false;
                 else return;
                 if (result.faces.indexOf("side") !== -1) {
@@ -436,7 +436,7 @@ window.onload = function() {
             }, 1500);
 
             // @todo this event is not being triggered!!!!
-            configuratorCSR.bind("loaded", function() {
+            configuratorCSR.bind("loaded", function () {
                 if (configuratorCSR.isFirst) configuratorCSR.isFirst = false;
                 else return;
                 if (result.faces.indexOf("side") !== -1) {
@@ -448,7 +448,7 @@ window.onload = function() {
 
             // registers for the unloading function to avoid memory
             // leaks both in the CSR and PRC configurators
-            window.addEventListener("unload", function() {
+            window.addEventListener("unload", function () {
                 ripe.unbindConfigurator(configuratorCSR);
                 ripe.unbindConfigurator(configuratorPRC);
             });
@@ -457,7 +457,7 @@ window.onload = function() {
             // the on click even that is going to be toggling between the
             // multiple render modes available
             toggleRenderMode &&
-                toggleRenderMode.addEventListener("click", function() {
+                toggleRenderMode.addEventListener("click", function () {
                     if (renderMode === "prc") renderMode = "csr";
                     else if (renderMode === "csr") renderMode = "prc";
                     updateRenderMode();
@@ -480,26 +480,26 @@ window.onload = function() {
         });
     };
 
-    const initInitials = function() {
+    const initInitials = function () {
         ripe.bindImage(document.getElementById("initials"), {
             showInitials: true
         });
 
-        ripe.bind("initials_extra", function(initialsExtra) {
+        ripe.bind("initials_extra", function (initialsExtra) {
             document.getElementById("initials-text").value =
                 initialsExtra.main && initialsExtra.main.initials
                     ? initialsExtra.main.initials
                     : "";
         });
 
-        document.getElementById("initials-text").addEventListener("keyup", function() {
+        document.getElementById("initials-text").addEventListener("keyup", function () {
             const initialsDrop = document.getElementById("initials-drop");
             const initialsDropContainer = initialsDrop.parentElement;
             const initialsInput = initialsDropContainer.getElementsByTagName("input")[0];
             ripe.setInitials(this.value, initialsInput.value);
         });
 
-        document.getElementById("initials-drop").onvalue_change = function() {
+        document.getElementById("initials-drop").onvalue_change = function () {
             const initialsText = document.getElementById("initials-text");
             const initialsDropContainer = this.parentElement;
             const initialsInput = initialsDropContainer.getElementsByTagName("input")[0];
@@ -510,11 +510,11 @@ window.onload = function() {
         // that are available for the current model and build the
         // associated drop down with these values
         const caller = ripe.loadedConfig
-            ? function(callback) {
+            ? function (callback) {
                   callback(ripe.loadedConfig);
               }
             : ripe.getConfig;
-        caller(function(result) {
+        caller(function (result) {
             const initials = result.initials || {};
             const profiles = initials.$profiles || {};
             const profilesKeys = Object.keys(profiles);
@@ -540,7 +540,7 @@ window.onload = function() {
      * Updates the render mode in usage for the current viewport
      * according to the currently set render mode (global variable).
      */
-    const updateRenderMode = function() {
+    const updateRenderMode = function () {
         if (renderMode === "prc") {
             elementCSR.style.display = "none";
             elementPRC.style.display = "inline-block";
@@ -556,7 +556,7 @@ window.onload = function() {
     // it to the ready event (all internal structures loaded according
     // to values from the server side
     ripe.load();
-    ripe.bind("ready", function() {
+    ripe.bind("ready", function () {
         try {
             init(ripe);
         } catch (exception) {

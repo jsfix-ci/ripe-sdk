@@ -13,7 +13,7 @@ if (
     var ripe = base.ripe;
 }
 
-ripe.Configurator = ripe.ConfiguratorPRC;
+ripe.Configurator = ripe.ConfiguratorPrc;
 
-ripe.Configurator.prototype = ripe.ConfiguratorPRC.prototype;
+ripe.Configurator.prototype = ripe.ConfiguratorPrc.prototype;
 ripe.Configurator.prototype.constructor = ripe.Configurator;

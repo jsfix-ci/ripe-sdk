@@ -230,8 +230,10 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     this.background =
         assetOptions.background === undefined ? this.background : assetOptions.background;
 
-    this.useEnvironmentAsBackground = 
-        assetOptions.useEnvironmentAsBackground === undefined ? this.useEnvironmentAsBackground : assetOptions.useEnvironmentAsBackground;
+    this.useEnvironmentAsBackground =
+        assetOptions.useEnvironmentAsBackground === undefined
+            ? this.useEnvironmentAsBackground
+            : assetOptions.useEnvironmentAsBackground;
 
     this.noMasks = renderOptions.noMasks === undefined ? this.noMasks : renderOptions.noMasks;
     this.useMasks = renderOptions.useMasks === undefined ? this.useMasks : renderOptions.useMasks;
@@ -254,7 +256,9 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
             ? this.animationLoops
             : assetOptions.animationLoops;
     this.animation =
-        assetOptions.selectedAnimation === undefined ? this.animation : assetOptions.selectedAnimation;
+        assetOptions.selectedAnimation === undefined
+            ? this.animation
+            : assetOptions.selectedAnimation;
 };
 
 /**
@@ -403,7 +407,12 @@ ripe.CSR.prototype._loadAssets = async function() {
     }
 
     if (this.background) {
-        await this.assetManager.setupEnvironment(this.scene, this.renderer, this.background, this.useEnvironmentAsBackground);
+        await this.assetManager.setupEnvironment(
+            this.scene,
+            this.renderer,
+            this.background,
+            this.useEnvironmentAsBackground
+        );
     }
 };
 
