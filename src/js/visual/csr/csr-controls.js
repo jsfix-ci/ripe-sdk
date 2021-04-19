@@ -27,10 +27,10 @@ ripe.CSRControls = function(csr, configurator, element, options) {
     this.camera = csr.camera;
     this.element = element;
 
-    this.maxHorAngle = 359;
-    this.minHorAngle = 0;
+    this.maxHorAngle = 370;
+    this.minHorAngle = -10;
     this.maxVerAngle = 89;
-    this.minVerAngle = 0;
+    this.minVerAngle = -89;
 
     this.rotationEasing = "easeInOutQuad";
 
@@ -87,8 +87,6 @@ ripe.CSRControls.prototype.constructor = ripe.CSRControls;
  */
 ripe.CSRControls.prototype._setControlsOptions = function(options) {
     const cameraOptions = options.camera || options.config.camera;
-
-    console.log(cameraOptions);
 
     if (!cameraOptions) return;
 
@@ -420,7 +418,7 @@ ripe.CSRControls.prototype._parseDrag = function(event) {
     const newY = event.y - this._previousRotEvent.y;
 
     // we subtract to have a more intuitive feel
-    if (this.minHorAngle < 0 && this.maxHorAngle > 359) this.targetRotation.x -= newX;
+    if (this.minHorAngle <= 0 && this.maxHorAngle >= 360) this.targetRotation.x -= newX;
     else {
         this.targetRotation.x = Math.min(
             Math.max(this.targetRotation.x - newX, this.minHorAngle),
@@ -626,11 +624,11 @@ ripe.CSRControls.prototype.recenterTransition = async function(targetPart) {
  */
 ripe.CSRControls.prototype.validHorizontalAngle = function(angle) {
     let newAngle = angle;
-    if (angle > 360) newAngle -= 360;
-    if (angle < 0) newAngle += 360;
+    if (angle >= 360) newAngle -= 360;
+    if (angle <= 0) newAngle += 360;
 
     // can freely rotate
-    if (this.minHorAngle < 0 && this.maxHorAngle > 360) return newAngle;
+    if (this.minHorAngle <= 0 && this.maxHorAngle >= 360) return newAngle;
     else return Math.min(Math.max(newAngle, this.minHorAngle), this.maxHorAngle);
 };
 
