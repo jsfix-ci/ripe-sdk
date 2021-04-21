@@ -499,7 +499,21 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
 
     let pos = 0;
     let startTime = 0;
-    const duration = options.duration === undefined ? 500 : options.duration;
+    const duration = options.duration;
+
+    if (duration == 0) {
+        this.currentDistance = this.referenceCameraDistance;
+        this.currentPan.x = this.referenceCameraTarget.x;
+        this.currentPan.y = this.referenceCameraTarget.y;
+        this.currentRotation.x = finalXRotation;
+        this.currentRotation.y = finalYRotation;
+
+        this.performSimpleRotation();
+
+        this.element.classList.remove("animating");
+        this.element.classList.remove("no-drag");
+        return;
+    }
 
     const transition = time => {
         startTime = startTime === 0 ? time : startTime;

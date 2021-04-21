@@ -56,7 +56,7 @@ ripe.ConfiguratorPrc.prototype.init = function() {
     this.sensitivity = this.options.sensitivity || 40;
     this.verticalThreshold = this.options.verticalThreshold || 15;
     this.clickThreshold = this.options.clickThreshold || 0.015;
-    this.duration = this.options.duration || 500;
+    this.duration = this.options.duration === undefined ? 500 : this.options.duration;
     this.preloadDelay = this.options.preloadDelay || 150;
     this.maskOpacity = this.options.maskOpacity || 0.4;
     this.maskDuration = this.options.maskDuration || 150;

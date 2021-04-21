@@ -865,7 +865,13 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
 
     this.crossfadeShader.uniforms.mixRatio.value = mixRatio;
 
-    const duration = options.duration || 500;
+    const duration = options.duration === undefined ? 500 : options.duration;
+    
+    if (duration == 0) {
+        this.controls.performSimpleRotation();
+        this.needsRenderUpdate = true;
+        return;
+    }
 
     let pos = 0;
     let startTime = 0;
@@ -963,7 +969,7 @@ ripe.CSR.prototype.rotate = function(options) {
  * - 'rotationY' - The new vertical rotation for the camera.
  * - 'distance' - The new camera distance.
  */
-ripe.CSR.prototype.changeFrameRotation = async function(frame) {
+ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOptions) {
     const _frame = ripe.parseFrameKey(frame);
 
     // parses the requested frame value according to the pre-defined
@@ -981,7 +987,8 @@ ripe.CSR.prototype.changeFrameRotation = async function(frame) {
     const options = {
         rotationX: nextRotationX,
         rotationY: nextRotationY,
-        distance: this.initialDistance
+        distance: this.initialDistance,
+        duration: changeFrameOptions.revolutionDuration === undefined ? 500 : changeFrameOptions.revolutionDuration
     };
 
     // checks to see if transition is required, and delegates

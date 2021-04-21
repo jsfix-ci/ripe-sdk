@@ -135,7 +135,7 @@ ripe.CSRPostProcess.prototype._setupAAPass = async function(camera, renderer) {
             });
 
             const context = renderer.getContext();
-            const samples = Math.max(4, context.getParameter(context.MAX_SAMPLES));
+            const samples = Math.max(0, context.getParameter(context.MAX_SAMPLES));
             self.composer.multisampling = samples;
 
             if (self.debug) self.csr.gui.setupAA(self.library, self.smaaEffect);

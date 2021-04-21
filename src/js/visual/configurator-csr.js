@@ -58,7 +58,7 @@ ripe.ConfiguratorCSR.prototype.init = function() {
     this.clickThreshold = this.options.clickThreshold || 0.015;
     this.view = this.options.view || "side";
     this.position = this.options.position || 0;
-    this.duration = this.options.duration || 500;
+    this.duration = this.options.duration === undefined ? 500 : this.options.duration;
     this.configAnimate =
         this.options.configAnimate === undefined ? "cross" : this.options.configAnimate;
     this.ready = false;
@@ -201,7 +201,7 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
         return false;
     }
 
-    const duration = options.duration || 500;
+    const duration = options.duration === undefined ? 500 : options.duration;
 
     if (!this.csr) return;
 
@@ -376,10 +376,10 @@ ripe.ConfiguratorCSR.prototype._initLayout = function() {
  * - 'safe' - If requested then the operation is only performed in case the configurator
  * is not in the an equivalent state (default to 'true').
  */
-ripe.ConfiguratorCSR.prototype.changeFrame = async function(frame, _options = {}) {
+ripe.ConfiguratorCSR.prototype.changeFrame = async function(frame, options = {}) {
     if (this.element.classList.contains("animating")) return;
 
-    this.csr.changeFrameRotation(frame);
+    this.csr.changeFrameRotation(frame, options);
 
     await this.update();
 };

@@ -113,6 +113,7 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
 
     // load high resolution textures
     this.setMaterials(this.owner.parts, true, false);
+    this._storePartsColors();
 };
 
 /**
