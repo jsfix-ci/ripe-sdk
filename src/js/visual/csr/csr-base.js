@@ -84,7 +84,9 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
 
-    this.gui = new ripe.CSRGui(this, options);
+    if (this.debug)
+        this.gui = new ripe.CSRGui(this, options);
+
     this.usesPostProcessing = options.postProcessing === undefined ? true : options.postProcessing;
 
     if (this.usesPostProcessing) {
@@ -213,13 +215,7 @@ ripe.CSR.prototype._setCameraOptions = function(options = {}) {
 ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     if (!options.renderer) return;
 
-    const renderOptions = options.renderer;
-    let assetOptions = {};
-    if (options.usesBuild === undefined || options.usesBuild === true) {
-        assetOptions = options.assets || options.config.assets;
-    } else {
-        assetOptions = options.assets;
-    }
+    const renderOptions = options.renderer || {};
 
     this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
     this.materialEasing =

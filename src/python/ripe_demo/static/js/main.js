@@ -293,14 +293,14 @@ window.onload = function () {
             frame0.addEventListener("click", function () {
                 if (result.frames > 9) {
                     configuratorCSR.changeFrame("side-9", {
-                        revolutionDuration: 500
+                        revolutionDuration: 0
                     });
                     configuratorPRC.changeFrame("side-9", {
                         revolutionDuration: 500
                     });
                 } else {
                     configuratorCSR.changeFrame("side-0", {
-                        revolutionDuration: 500
+                        revolutionDuration: 0
                     });
                     configuratorPRC.changeFrame("side-0", {
                         revolutionDuration: 500
@@ -309,7 +309,7 @@ window.onload = function () {
             });
             frame6.addEventListener("click", function () {
                 configuratorCSR.changeFrame("side-6", {
-                    revolutionDuration: 500
+                    revolutionDuration: 0
                 });
                 configuratorPRC.changeFrame("side-6", {
                     revolutionDuration: 500
@@ -325,7 +325,7 @@ window.onload = function () {
             });
             frameFront.addEventListener("click", function () {
                 configuratorPRC.changeFrame("front-0", {
-                    duration: 250
+                    duration: 0
                 });
                 configuratorCSR.changeFrame("front-0", {
                     duration: 250
@@ -379,6 +379,8 @@ window.onload = function () {
 
                 // the relative path with the location of the assets
                 path: "/static/assets/",
+                //usesBuild: false,
+                //modelPath: "base.glb",
 
                 initials: {
                     align: "center"
