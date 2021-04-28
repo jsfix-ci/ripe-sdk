@@ -88,6 +88,7 @@ ripe.CSR = function(configurator, owner, element, options) {
         this.gui = new ripe.CSRGui(this, options);
 
     this.usesPostProcessing = options.postProcessing === undefined ? true : options.postProcessing;
+    this.view = options.view;
 
     if (this.usesPostProcessing) {
         this.postprocessing = new ripe.CSRPostProcess(this, options);
@@ -183,6 +184,8 @@ ripe.CSR.prototype.updateOptions = async function(options) {
     this.controls.updateOptions(options);
     this.initials.updateOptions(options);
     this.postprocessing.updateOptions(options);
+
+    this.view = options.view === undefined ? this.view : options.view;
 
     this._setCameraOptions(options);
     this._setRenderOptions(options);
@@ -294,6 +297,10 @@ ripe.CSR.prototype.initialize = async function() {
     // web artifact like web workers for its execution
     if (this.usesPostProcessing) {
         await this.postprocessing.setup(this);
+    }
+
+    if (this.view) {
+        this.changeFrameRotation(this.view, {revolutionDuration: 0}, true);
     }
 
     if (this.playsAnimation) {
@@ -587,10 +594,12 @@ ripe.CSR.prototype._initializeCameras = function() {
     this.camera = new this.library.PerspectiveCamera(this.cameraFOV, width / height, 0.01, 200);
     this.camera.position.set(0, 0, 0);
 
-    // set the camera in the original place
-    this.controls.updateRotation();
-    this.controls.performSimpleRotation();
-
+    // set the camera in the original place, if there is no deteremined view
+    if (!this.view) {
+        this.controls.updateRotation();
+        this.controls.performSimpleRotation();
+    }
+    
     if (this.element.dataset.view === "side") {
         this._currentVerticalRot = 0;
         this.verticalRot = 0;
@@ -990,21 +999,22 @@ ripe.CSR.prototype.rotate = function(options) {
  * - 'rotationY' - The new vertical rotation for the camera.
  * - 'distance' - The new camera distance.
  */
-ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOptions) {
+ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOptions = {}, forceRotation = false) {
     const _frame = ripe.parseFrameKey(frame);
 
     // parses the requested frame value according to the pre-defined
     // standard (eg: side-3) and then unpacks it as view and position
     const nextView = _frame[0];
-    const nextPosition = parseInt(_frame[1]);
+    const nextPosition = _frame[1] || 0;
     const position = parseInt(this.element.dataset.position);
     const view = this.element.dataset.view;
 
     // nothing has changed, or is performing other transition
-    if (view === nextView && position === nextPosition) return false;
+    if (view === nextView && position === nextPosition && this.controls.currentDistance === this.initialDistance && !forceRotation) return false;
 
     const nextRotationX = this.controls.positionToRotation(nextPosition);
     const nextRotationY = this.controls.viewToRotation(nextView);
+
     const options = {
         rotationX: nextRotationX,
         rotationY: nextRotationY,
