@@ -1047,8 +1047,10 @@ ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOption
         } else if (this.positionAnimate === "rotate") {
             this.controls.rotationTransition(options);
         } else if (this.positionAnimate === "none") {
-            this.csr.rotate(options);
+            this.rotate(options);
         }
+    } else {
+        this.rotate(options);
     }
 };
 
