@@ -214,7 +214,12 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     if (!options.renderer) return;
 
     const renderOptions = options.renderer;
-    const assetOptions = options.assets || options.config.assets;
+    let assetOptions = {};
+    if (options.usesBuild === undefined || options.usesBuild === true) {
+        assetOptions = options.assets || options.config.assets;
+    } else {
+        assetOptions = options.assets;
+    }
 
     this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
     this.materialEasing =
@@ -419,7 +424,7 @@ ripe.CSR.prototype._loadAssets = async function() {
         this.mixer = new this.library.AnimationMixer(this.scene);
     }
 
-    if (this.background) {
+    if (this.background !== "") {
         await this.assetManager.setupEnvironment(
             this.scene,
             this.renderer,
@@ -880,7 +885,7 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
 
     const duration = options.duration === undefined ? 500 : options.duration;
 
-    if (duration == 0) {
+    if (duration === 0) {
         this.controls.performSimpleRotation();
         this.needsRenderUpdate = true;
         return;

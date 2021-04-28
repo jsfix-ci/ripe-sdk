@@ -501,7 +501,7 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
     let startTime = 0;
     const duration = options.duration;
 
-    if (duration == 0) {
+    if (duration === 0) {
         this.currentDistance = this.referenceCameraDistance;
         this.currentPan.x = this.referenceCameraTarget.x;
         this.currentPan.y = this.referenceCameraTarget.y;

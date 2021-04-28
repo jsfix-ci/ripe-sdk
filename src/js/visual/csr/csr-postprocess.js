@@ -66,6 +66,7 @@ ripe.CSRPostProcess.prototype._setPostProcessOptions = function(options = {}) {
     this.shadowBias =
         postProcOptions.shadowBias === undefined ? this.shadowBias : postProcOptions.shadowBias;
     this.radius = postProcOptions.radius === undefined ? this.radius : postProcOptions.radius;
+    this.samples = postProcOptions.samples === undefined ? 0 : postProcOptions.samples;
 
     if (postProcOptions.bloom) this.bloomOptions = postProcOptions.bloom;
     if (postProcOptions.antialiasing) this.aaOptions = postProcOptions.antialiasing;
@@ -135,8 +136,13 @@ ripe.CSRPostProcess.prototype._setupAAPass = async function(camera, renderer) {
             });
 
             const context = renderer.getContext();
-            const samples = Math.max(0, context.getParameter(context.MAX_SAMPLES));
-            self.composer.multisampling = samples;
+            // is limited by the specified number of samples
+            const samples = Math.min(
+                Math.max(0, context.getParameter(context.MAX_SAMPLES)),
+                this.samples
+            );
+
+            if (samples !== 0) self.composer.multisampling = samples;
 
             if (self.debug) self.csr.gui.setupAA(self.library, self.smaaEffect);
 

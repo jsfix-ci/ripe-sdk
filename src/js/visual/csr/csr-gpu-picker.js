@@ -89,6 +89,7 @@ ripe.CSRGPUPicker.prototype.pick = function(coordinates) {
         this.pickingTarget.height,
         this.pixelBuffer
     );
+
     this.renderer.setRenderTarget(currRenderTarget);
     this.renderer.setClearColor(currClearColor);
     this.camera.clearViewOffset();
