@@ -98,6 +98,9 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.controls = new ripe.CSRControls(this, configurator, this.element, options);
     this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
 
+    // useful to know when to inject finished loading div
+    this.hasFinishedLoading = false;
+
     // base initialization, does not require assets to be loaded
     this._initializeCameras();
     this._initializeRenderer();
@@ -354,6 +357,16 @@ ripe.CSR.prototype._createLoops = function() {
             if (this.usesPostProcessing && this.postprocessing.composer) {
                 this.postprocessing.composer.render();
             } else this.renderer.render(this.scene, this.camera);
+
+            if (!this.hasFinishedLoading) {
+                // injects element to assure that everything has finished loading and has renderered,
+                // necessary for using CSR as a method of obtaining images like PRC
+                const loadedDiv = document.createElement("div");
+                loadedDiv.id = "finishedLoading";
+                document.body.appendChild(loadedDiv);
+
+                this.hasFinishedLoading = true;
+            }
         }
 
         this.needsRenderUpdate = false;
@@ -866,7 +879,7 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     this.crossfadeShader.uniforms.mixRatio.value = mixRatio;
 
     const duration = options.duration === undefined ? 500 : options.duration;
-    
+
     if (duration == 0) {
         this.controls.performSimpleRotation();
         this.needsRenderUpdate = true;
@@ -988,7 +1001,10 @@ ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOption
         rotationX: nextRotationX,
         rotationY: nextRotationY,
         distance: this.initialDistance,
-        duration: changeFrameOptions.revolutionDuration === undefined ? 500 : changeFrameOptions.revolutionDuration
+        duration:
+            changeFrameOptions.revolutionDuration === undefined
+                ? 500
+                : changeFrameOptions.revolutionDuration
     };
 
     // checks to see if transition is required, and delegates

@@ -50,7 +50,7 @@ ripe.CSRGPUPicker = function(csr) {
         // submit them again for picking
         const renderList = self.renderer.renderLists.get(self.scene, self.camera);
 
-        renderList.opaque.forEach(item => self.processItem(item));
+        if (renderList) renderList.opaque.forEach(item => self.processItem(item));
     };
 
     // RGBA is 4 channels.
