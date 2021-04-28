@@ -235,6 +235,13 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
             ? this.highlightEasing
             : renderOptions.highlightEasing;
 
+    let assetOptions = {};
+    if (options.usesBuild === undefined || options.usesBuild === true) {
+        assetOptions = options.assets || options.config.assets || {};
+    } else {
+        assetOptions = options.assets || {};
+    }
+
     this.background =
         assetOptions.background === undefined ? this.background : assetOptions.background;
 
