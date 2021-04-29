@@ -24,10 +24,6 @@ if (
  * asset manager.
  */
 ripe.CSRAssetManager = function(csr, owner, options) {
-    // there must be a model configuration, otherwise an error will occur
-    // in case there's not throws a series of exceptions
-    if (!options.config) throw new Error("No valid configuration provided");
-
     this.owner = owner;
     this.csr = csr;
     this.assetsPath = options.path || "";
@@ -45,7 +41,7 @@ ripe.CSRAssetManager = function(csr, owner, options) {
     this.format = options.format || "gltf";
     this.textureLoader = new this.library.TextureLoader();
 
-    this.modelConfig = options.config;
+    this.modelConfig = options.config || {};
 
     this.wireframes = {};
     this.animations = new Map();

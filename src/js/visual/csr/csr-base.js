@@ -242,7 +242,6 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     if (this.usesBuild) assetOptions = { ...options.config.assets, ...options.assets };
     else assetOptions = options.assets || {};
 
-    console.log(assetOptions);
     this.background =
         assetOptions.background === undefined ? this.background : assetOptions.background;
 
