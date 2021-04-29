@@ -40,6 +40,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.cameraFOV = 20;
     this.cameraTarget = new this.library.Vector3(0, 0, 0);
     this.initialDistance = 100;
+    this.usesBuild = options.usesBuild === undefined ? true : options.usesBuild;
 
     this._setCameraOptions(options);
 
@@ -97,7 +98,7 @@ ripe.CSR = function(configurator, owner, element, options) {
 
     // create support structures, but only initialize initials if there is a build,
     // as it relies on information from that
-    if (options.usesBuild) this.initials = new ripe.CSRInitials(this.owner, options);
+    if (this.usesBuild) this.initials = new ripe.CSRInitials(this.owner, options);
     this.controls = new ripe.CSRControls(this, configurator, this.element, options);
     this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
 
@@ -182,7 +183,7 @@ ripe.CSR.prototype._registerHandlers = function() {
 ripe.CSR.prototype.updateOptions = async function(options) {
     this.assetManager.updateOptions(options);
     this.controls.updateOptions(options);
-    this.initials.updateOptions(options);
+    if (this.usesBuild) this.initials.updateOptions(options);
     this.postprocessing.updateOptions(options);
 
     this.view = options.view === undefined ? this.view : options.view;
@@ -199,11 +200,8 @@ ripe.CSR.prototype.updateOptions = async function(options) {
 
 ripe.CSR.prototype._setCameraOptions = function(options = {}) {
     let camOptions = {};
-    if (options.usesBuild === undefined || options.usesBuild === true) {
-        camOptions = options.camera || options.config.camera || {};
-    } else {
-        camOptions = options.camera || {};
-    }
+    if (this.usesBuild) camOptions = { ...options.config.camera, ...options.camera };
+    else camOptions = options.camera || {};
 
     this.cameraFOV = camOptions.fov === undefined ? this.cameraFOV : camOptions.fov;
     this.cameraTarget =
@@ -215,16 +213,14 @@ ripe.CSR.prototype._setCameraOptions = function(options = {}) {
                   camOptions.target.z
               );
 
-    this.initialDistance = camOptions.distance;
+    this.initialDistance = camOptions.distance === undefined ? 10 : camOptions.distance;
 };
 
 ripe.CSR.prototype._setRenderOptions = function(options = {}) {
     let renderOptions = {};
-    if (options.usesBuild === undefined || options.usesBuild === true) {
-        renderOptions = options.renderer || options.config.renderer || {};
-    } else {
-        renderOptions = options.renderer || {};
-    }
+
+    if (this.usesBuild) renderOptions = { ...options.config.renderer, ...options.renderer };
+    else renderOptions = options.renderer || {};
 
     this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
     this.materialEasing =
@@ -242,12 +238,11 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
 
     let assetOptions = {};
 
-    if (options.usesBuild === undefined || options.usesBuild === true) {
-        assetOptions = options.assets || options.config.assets || {};
-    } else {
-        assetOptions = options.assets || {};
-    }
+    // options.assets overrides specified config
+    if (this.usesBuild) assetOptions = { ...options.config.assets, ...options.assets };
+    else assetOptions = options.assets || {};
 
+    console.log(assetOptions);
     this.background =
         assetOptions.background === undefined ? this.background : assetOptions.background;
 
@@ -291,7 +286,7 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
 ripe.CSR.prototype.initialize = async function() {
     this._createLoops();
 
-    this.initials.initialize(this.assetManager);
+    if (this.usesBuild) this.initials.initialize(this.assetManager);
 
     // triggers the loading of the remote assets that are going
     // to be used in scene initialization

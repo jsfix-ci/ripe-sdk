@@ -36,6 +36,7 @@ ripe.CSRAssetManager = function(csr, owner, options) {
     this.owner = owner;
 
     this.usesBuild = options.usesBuild === undefined ? true : options.usesBuild;
+
     // model path can only be passed if it does not use a config
     if (!this.usesConfig) {
         this.modelPath = options.modelPath;

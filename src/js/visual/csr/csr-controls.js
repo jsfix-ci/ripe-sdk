@@ -88,7 +88,7 @@ ripe.CSRControls.prototype.constructor = ripe.CSRControls;
 ripe.CSRControls.prototype._setControlsOptions = function(options) {
     let cameraOptions = {};
     if (options.usesBuild === undefined || options.usesBuild === true) {
-        cameraOptions = options.camera || options.config.camera || {};
+        cameraOptions = { ...options.config.camera, ...options.camera };
     } else {
         cameraOptions = options.camera || {};
     }
