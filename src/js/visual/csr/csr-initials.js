@@ -53,9 +53,13 @@ ripe.CSRInitials.prototype.constructor = ripe.CSRInitials;
  * @ignore
  */
 ripe.CSRInitials.prototype._setInitialsOptions = function(options = {}) {
-    if (!options.initials) return;
+    let initialsOptions = {};
 
-    const initialsOptions = options.initials;
+    if (options.usesBuild === undefined || options.usesBuild === true) {
+        initialsOptions = options.initials || options.config.initials || {};
+    } else {
+        initialsOptions = options.initials || {};
+    }
 
     this.engraving =
         initialsOptions.engraving === undefined ? this.engraving : initialsOptions.engraving;

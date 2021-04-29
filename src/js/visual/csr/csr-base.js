@@ -84,8 +84,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.enableRaycastAnimation =
         options.enableRaycastAnimation === undefined ? false : options.enableRaycastAnimation;
 
-    if (this.debug)
-        this.gui = new ripe.CSRGui(this, options);
+    if (this.debug) this.gui = new ripe.CSRGui(this, options);
 
     this.usesPostProcessing = options.postProcessing === undefined ? true : options.postProcessing;
     this.view = options.view;
@@ -198,9 +197,12 @@ ripe.CSR.prototype.updateOptions = async function(options) {
 };
 
 ripe.CSR.prototype._setCameraOptions = function(options = {}) {
-    const camOptions = options.camera || options.config.camera;
-
-    if (!camOptions) return;
+    let camOptions = {};
+    if (options.usesBuild === undefined || options.usesBuild === true) {
+        camOptions = options.camera || options.config.camera || {};
+    } else {
+        camOptions = options.camera || {};
+    }
 
     this.cameraFOV = camOptions.fov === undefined ? this.cameraFOV : camOptions.fov;
     this.cameraTarget =
@@ -216,9 +218,12 @@ ripe.CSR.prototype._setCameraOptions = function(options = {}) {
 };
 
 ripe.CSR.prototype._setRenderOptions = function(options = {}) {
-    if (!options.renderer) return;
-
-    const renderOptions = options.renderer || {};
+    let renderOptions = {};
+    if (options.usesBuild === undefined || options.usesBuild === true) {
+        renderOptions = options.renderer || options.config.renderer || {};
+    } else {
+        renderOptions = options.renderer || {};
+    }
 
     this.easing = renderOptions.easing === undefined ? this.easing : renderOptions.easing;
     this.materialEasing =
@@ -235,6 +240,7 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
             : renderOptions.highlightEasing;
 
     let assetOptions = {};
+
     if (options.usesBuild === undefined || options.usesBuild === true) {
         assetOptions = options.assets || options.config.assets || {};
     } else {
@@ -300,7 +306,7 @@ ripe.CSR.prototype.initialize = async function() {
     }
 
     if (this.view) {
-        this.changeFrameRotation(this.view, {revolutionDuration: 0}, true);
+        this.changeFrameRotation(this.view, { revolutionDuration: 0 }, true);
     }
 
     if (this.playsAnimation) {
@@ -599,7 +605,7 @@ ripe.CSR.prototype._initializeCameras = function() {
         this.controls.updateRotation();
         this.controls.performSimpleRotation();
     }
-    
+
     if (this.element.dataset.view === "side") {
         this._currentVerticalRot = 0;
         this.verticalRot = 0;
@@ -999,7 +1005,11 @@ ripe.CSR.prototype.rotate = function(options) {
  * - 'rotationY' - The new vertical rotation for the camera.
  * - 'distance' - The new camera distance.
  */
-ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOptions = {}, forceRotation = false) {
+ripe.CSR.prototype.changeFrameRotation = async function(
+    frame,
+    changeFrameOptions = {},
+    forceRotation = false
+) {
     const _frame = ripe.parseFrameKey(frame);
 
     // parses the requested frame value according to the pre-defined
@@ -1010,7 +1020,14 @@ ripe.CSR.prototype.changeFrameRotation = async function(frame, changeFrameOption
     const view = this.element.dataset.view;
 
     // nothing has changed, or is performing other transition
-    if (view === nextView && position === nextPosition && this.controls.currentDistance === this.initialDistance && !forceRotation) return false;
+    if (
+        view === nextView &&
+        position === nextPosition &&
+        this.controls.currentDistance === this.initialDistance &&
+        !forceRotation
+    ) {
+        return false;
+    }
 
     const nextRotationX = this.controls.positionToRotation(nextPosition);
     const nextRotationY = this.controls.viewToRotation(nextView);
