@@ -25,7 +25,6 @@ if (
 ripe.CSRInitials = function(owner, options) {
     this.owner = owner;
     this.library = options.library;
-    this.config = options.config.initials;
     this.options = options;
 
     this.initialsType = "emboss";
@@ -61,6 +60,8 @@ ripe.CSRInitials.prototype._setInitialsOptions = function(options = {}) {
         initialsOptions = options.initials || {};
     }
 
+    this.config = initialsOptions;
+
     this.engraving =
         initialsOptions.engraving === undefined ? this.engraving : initialsOptions.engraving;
     this.align = initialsOptions.align === undefined ? this.align : initialsOptions.align;
@@ -94,6 +95,8 @@ ripe.CSRInitials.prototype.initialize = async function(assetManager) {
 ripe.CSRInitials.prototype._initializeFonts = async function() {
     const loader = new this.library.FontLoader();
     const baseFontPath = `${this.options.path}${this.owner.brand}/${this.owner.model}/fonts/`;
+
+    if (!this.config.fonts) return;
 
     for (let i = 0; i < this.config.fonts.length; i++) {
         const newFont = await new Promise((resolve, reject) => {

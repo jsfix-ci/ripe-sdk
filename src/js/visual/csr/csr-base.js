@@ -95,8 +95,9 @@ ripe.CSR = function(configurator, owner, element, options) {
 
     this.scene = new this.library.Scene();
 
-    // create support structures
-    this.initials = new ripe.CSRInitials(this.owner, options);
+    // create support structures, but only initialize initials if there is a build,
+    // as it relies on information from that
+    if (options.usesBuild) this.initials = new ripe.CSRInitials(this.owner, options);
     this.controls = new ripe.CSRControls(this, configurator, this.element, options);
     this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
 

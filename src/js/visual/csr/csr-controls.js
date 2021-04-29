@@ -86,7 +86,12 @@ ripe.CSRControls.prototype.constructor = ripe.CSRControls;
  * controls' behaviour.
  */
 ripe.CSRControls.prototype._setControlsOptions = function(options) {
-    const cameraOptions = options.camera || options.config.camera;
+    let cameraOptions = {};
+    if (options.usesBuild === undefined || options.usesBuild === true) {
+        cameraOptions = options.camera || options.config.camera || {};
+    } else {
+        cameraOptions = options.camera || {};
+    }
 
     if (!cameraOptions) return;
 
