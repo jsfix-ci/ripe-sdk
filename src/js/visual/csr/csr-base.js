@@ -39,7 +39,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     // sets the default configurations
     this.cameraFOV = 20;
     this.cameraTarget = new this.library.Vector3(0, 0, 0);
-    this.initialDistance = 100;
+    this.initialDistance = 20;
     this.usesBuild = options.usesBuild === undefined ? true : options.usesBuild;
 
     this._setCameraOptions(options);
@@ -213,7 +213,7 @@ ripe.CSR.prototype._setCameraOptions = function(options = {}) {
                   camOptions.target.z
               );
 
-    this.initialDistance = camOptions.distance === undefined ? 10 : camOptions.distance;
+    this.initialDistance = camOptions.distance === undefined ? 20 : camOptions.distance;
 };
 
 ripe.CSR.prototype._setRenderOptions = function(options = {}) {
