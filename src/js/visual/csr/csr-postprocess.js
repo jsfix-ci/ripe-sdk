@@ -49,11 +49,13 @@ ripe.CSRPostProcess.prototype.setup = async function(csr) {
 
     this.composer.addPass(this.renderPass);
 
-    await this._setupBloomPass(csr.camera);
-    await this._setupAAPass(csr.camera, csr.renderer);
-
     // solve artefacts for Skinned Meshes
     this.library.OverrideMaterialManager.workaroundEnabled = true;
+
+    await Promise.all([
+        this._setupBloomPass(csr.camera),
+        this._setupAAPass(csr.camera, csr.renderer)
+    ]);
 };
 
 ripe.CSRPostProcess.prototype._setPostProcessOptions = function(options = {}) {
@@ -107,15 +109,13 @@ ripe.CSRPostProcess.prototype._setupBloomPass = async function(camera) {
  * @ignore
  */
 ripe.CSRPostProcess.prototype._setupAAPass = async function(camera, renderer) {
-    const loadingManager = new this.csr.library.LoadingManager();
-    const smaaImageLoader = new this.library.SMAAImageLoader(loadingManager);
-
     const self = this;
 
     // encapsulates the loader logic around a promise and waits
     // for it to be finalized in success or in error
     await new Promise((resolve, reject) => {
-        smaaImageLoader.load(([search, area]) => {
+        const smaaImageGenerator = new this.library.SMAAImageGenerator();
+        smaaImageGenerator.generate().then(function([search, area]) {
             self.smaaEffect = new self.library.SMAAEffect(
                 search,
                 area,

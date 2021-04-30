@@ -107,20 +107,63 @@ ripe.CSR = function(configurator, owner, element, options) {
 
     // base initialization, does not require assets to be loaded
     this._initializeCameras();
-    this._initializeRenderer();
     this._initializeLights();
     this._registerHandlers();
     this._initializeShaders();
+    this._initializeRenderer();
     this._initializeRaycaster();
+
+    this._setupLoops();
 
     // triggers the initial loading of the assets, according to the
     // configuration currently set in the instance, and stores the result
     // in the current scene
-    this.assetManager.loadAssets(this.scene);
+    this._initializeAsyncFunctions();
 };
 
 ripe.CSR.prototype = ripe.build(ripe.Observable.prototype);
 ripe.CSR.prototype.constructor = ripe.CSR;
+
+/**
+ * Parallelises loading.
+ */
+ripe.CSR.prototype._initializeAsyncFunctions = async function() {
+    const promises = [this.assetManager.loadAssets(this.scene), this._loadAssets()];
+    if (this.usesPostProcessing) promises.push(this._initializePostProcessing());
+    else promises.push(this._performFirstTimeRender());
+
+    await Promise.all(promises);
+
+    this.initialize();
+};
+
+ripe.CSR.prototype._initializePostProcessing = async function() {
+    console.time("postprocessing");
+    // in case post processing is required runs the setup process
+    // so that the composer is available for the fake initial render
+    if (this.usesPostProcessing) {
+        await this.postprocessing.setup(this);
+    }
+
+    console.timeEnd("postprocessing");
+
+    await this._performFirstTimeRender()
+};
+
+ripe.CSR.prototype._performFirstTimeRender = async function() {
+    // first render takes longer, so we do it first, while waiting
+    // for the assets
+    // the code renders to frame buffer object to prevent from rendering
+    // to screen
+    this.renderer.setRenderTarget(this.previousSceneFBO);
+    this.renderer.clear();
+
+    this._render();
+
+    // resets the renderer
+    this.renderer.setRenderTarget(null);
+    this.renderer.clear();
+};
 
 /**
  * @ignore
@@ -282,23 +325,10 @@ ripe.CSR.prototype._setRenderOptions = function(options = {}) {
  *
  * @param {CSRAssetManager} assetManager
  */
-ripe.CSR.prototype.initialize = async function() {
-    this._createLoops();
-
+ripe.CSR.prototype.initialize = function() {
     if (this.usesBuild) this.initials.initialize(this.assetManager);
 
-    // triggers the loading of the remote assets that are going
-    // to be used in scene initialization
-    await this._loadAssets();
-
     if (this.debug) this.gui.setup();
-
-    // in case post processing is required runs the setup process
-    // for it, this may take several time to finish and may use
-    // web artifact like web workers for its execution
-    if (this.usesPostProcessing) {
-        await this.postprocessing.setup(this);
-    }
 
     if (this.view) {
         this.changeFrameRotation(this.view, { revolutionDuration: 0 }, true);
@@ -358,22 +388,30 @@ ripe.CSR.prototype._initializeRaycaster = function() {
 };
 
 /**
+ * @ignore
+ */
+ripe.CSR.prototype._render = function() {
+    if (this.usesPostProcessing && this.postprocessing.composer) {
+        this.postprocessing.composer.render();
+    } else this.renderer.render(this.scene, this.camera);
+};
+
+/**
  * Creates custom render and raycasting loops for increased performance.
  * For the render loop, only render when specifically told to update,
  * for the raycasting loop, only raycast when mouse event was registered,
  * and after a certain threshold of time has passed since the previous
  * raycast operation.
  */
-ripe.CSR.prototype._createLoops = function() {
+ripe.CSR.prototype._setupLoops = async function() {
     this.needsRenderUpdate = false;
     this.forceStopRender = false;
 
     const renderLoop = () => {
         if (this.needsRenderUpdate && !this.forceStopRender) {
-            if (this.usesPostProcessing && this.postprocessing.composer) {
-                this.postprocessing.composer.render();
-            } else this.renderer.render(this.scene, this.camera);
+            this._render();
 
+            // is the first full render
             if (!this.hasFinishedLoading) {
                 // injects element to assure that everything has finished loading and has renderered,
                 // necessary for using CSR as a method of obtaining images like PRC
@@ -415,15 +453,15 @@ ripe.CSR.prototype._createLoops = function() {
         }
     };
 
-    const fullLoop = time => {
+    this.runtimeLoop = time => {
         renderLoop();
         raycastLoop();
         this.controls.rotationLoop(time);
-        requestAnimationFrame(fullLoop);
+        requestAnimationFrame(this.runtimeLoop);
     };
 
-    // begin full loop
-    requestAnimationFrame(fullLoop);
+    // begin querying for the loop
+    requestAnimationFrame(this.runtimeLoop);
 };
 
 /**
@@ -1137,17 +1175,6 @@ ripe.CSR.prototype._performAnimation = function(animationName) {
 
     const doAnimation = () => {
         if (delta === -1) {
-            // first render takes longer, done before the clock begins,
-            // renders to frame buffer object to prevent from rendering
-            // to screen
-            this.renderer.setRenderTarget(this.previousSceneFBO);
-            this.renderer.clear();
-            this.renderer.render(this.scene, this.camera);
-
-            // resets the renderer
-            this.renderer.setRenderTarget(null);
-            this.renderer.clear();
-
             clock.start();
             action.play();
 

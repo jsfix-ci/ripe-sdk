@@ -82,23 +82,23 @@ ripe.CSRAssetManager.prototype.updateOptions = async function(options) {
 ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes = false } = {}) {
     this.scene = scene;
 
+    const promises = [];
+
     // loads the initial mesh asset to be used as the main mesh
     // of the scene (should use the RIPE SDK for model URL) and
     // then loads its sub-meshes
-    const asset = await this._loadAsset();
+    await this._loadAsset();
 
-    if (this.environmentScene) await this._loadAsset(this.environmentScene, "scene");
-
-    if (wireframes) this._loadWireframes(asset);
+    if (this.environmentScene) promises.push(this._loadAsset(this.environmentScene, "scene"));
 
     // sets the materials for the first time, if the model uses build
     if (this.usesBuild) {
-        await this.setMaterials(this.owner.parts, true, true);
+        promises.push(this.setMaterials(this.owner.parts, true, true));
         // loads the complete set of animations defined in the
         // model configuration
 
         for (let i = 0; i < this.modelConfig.assets.animations.length; i++) {
-            await this._loadAsset(this.modelConfig.assets.animations[i], "animation");
+            promises.push(this._loadAsset(this.modelConfig.assets.animations[i], "animation"));
         }
     } else {
         // Updates the base colors for all the materials currently being used,
@@ -106,13 +106,18 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
         this._storePartsColors();
     }
 
-    this.csr.initialize();
+    await Promise.all(promises);
 
+    if (wireframes) this._loadWireframes();
+
+    // load assynchronously high res texture
+    if (this.usesBuild) this.loadHighResTextures();
+};
+
+ripe.CSRAssetManager.prototype.loadHighResTextures = async function() {
     // load high resolution textures
-    if (this.usesBuild) {
-        this.setMaterials(this.owner.parts, true, false);
-        this._storePartsColors();
-    }
+    this.setMaterials(this.owner.parts, true, false);
+    this._storePartsColors();
 };
 
 /**
