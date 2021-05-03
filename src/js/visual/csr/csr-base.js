@@ -147,7 +147,7 @@ ripe.CSR.prototype._initializePostProcessing = async function() {
 
     console.timeEnd("postprocessing");
 
-    await this._performFirstTimeRender()
+    await this._performFirstTimeRender();
 };
 
 ripe.CSR.prototype._performFirstTimeRender = async function() {
@@ -413,11 +413,10 @@ ripe.CSR.prototype._setupLoops = async function() {
 
             // is the first full render
             if (!this.hasFinishedLoading) {
-                // injects element to assure that everything has finished loading and has renderered,
-                // necessary for using CSR as a method of obtaining images like PRC
-                const loadedDiv = document.createElement("div");
-                loadedDiv.id = "finishedLoading";
-                document.body.appendChild(loadedDiv);
+                // create and dispatch the event used by running from puppeteer
+                // to query if the csr has finished the first frame
+                const event = new CustomEvent("csr-rendered");
+                document.dispatchEvent(event);
 
                 this.hasFinishedLoading = true;
             }
