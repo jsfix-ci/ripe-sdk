@@ -103,7 +103,7 @@ ripe.CSR = function(configurator, owner, element, options) {
     this.assetManager = new ripe.CSRAssetManager(this, this.owner, options);
 
     // useful to know when to inject finished loading div
-    this.hasFinishedLoading = false;
+    this.sendEventOnRender = false;
 
     // base initialization, does not require assets to be loaded
     this._initializeCameras();
@@ -334,6 +334,9 @@ ripe.CSR.prototype.initialize = function() {
         this.changeFrameRotation(this.view, { revolutionDuration: 0 }, true);
     }
 
+    // first render needs to emit an event
+    this.sendEventOnRender = true;
+
     if (this.playsAnimation) {
         // in case were meant to execute an animation bt there's none
         // available raises an exception
@@ -412,13 +415,14 @@ ripe.CSR.prototype._setupLoops = async function() {
             this._render();
 
             // is the first full render
-            if (!this.hasFinishedLoading) {
+            if (this.sendEventOnRender) {
                 // create and dispatch the event used by running from puppeteer
                 // to query if the csr has finished the first frame
                 const event = new CustomEvent("csr-rendered");
                 document.dispatchEvent(event);
 
-                this.hasFinishedLoading = true;
+                this.sendEventOnRender = false;
+
             }
         }
 
@@ -871,6 +875,9 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     // a complex crossfade
     if (options.duration === 0) {
         if (type === "material") {
+            // crossfade should emit an event
+            this.sendEventOnRender = true;
+
             await this.assetManager.setMaterials(parts, true);
             this.needsRenderUpdate = true;
             return;
@@ -988,6 +995,7 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
 
             this.forceStopRender = false;
             this.needsRenderUpdate = true;
+            this.sendEventOnRender = true;
 
             return;
         }
