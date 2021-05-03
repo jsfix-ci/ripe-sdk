@@ -867,6 +867,21 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
 ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     const parts = options.parts === undefined ? this.owner.parts : options.parts;
 
+    // if it is an immediate transition, perform it and not
+    // a complex crossfade
+    if (options.duration === 0) {
+        if (type === "material") {
+            await this.assetManager.setMaterials(parts, true);
+            this.needsRenderUpdate = true;
+            return;
+        } else if (type === "rotation") {
+            this.rotate(options);
+            this.controls.targetRotation.set(options.rotationX, options.rotationY);
+            this.controls.currentRotation.set(options.rotationX, options.rotationY);
+            return;
+        }
+    }
+
     const width = this.element.getBoundingClientRect().width;
     const height = this.element.getBoundingClientRect().height;
 

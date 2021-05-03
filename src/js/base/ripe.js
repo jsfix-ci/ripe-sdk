@@ -725,9 +725,10 @@ ripe.Ripe.prototype.setPart = async function(part, material, color, events = tru
     // control flow immediately (nothing remaining to be done)
     if (!runUpdate) return;
 
+    const fullOptions = { ...options, ...{ reason: "set part" } };
     // propagates the state change in the internal structures to the
     // children elements of this Ripe Instance
-    const promise = this.update(undefined, { reason: "set part" });
+    const promise = this.update(undefined, fullOptions);
 
     // in case the wait update options is valid (by default) then waits
     // until the update promise is fulfilled

@@ -91,12 +91,11 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
 
     if (this.environmentScene) promises.push(this._loadAsset(this.environmentScene, "scene"));
 
-    // sets the materials for the first time, if the model uses build
+    // sets the materials using low resolution textures
+    promises.push(this.setMaterials(this.owner.parts, true, true));
     if (this.usesBuild) {
-        promises.push(this.setMaterials(this.owner.parts, true, true));
         // loads the complete set of animations defined in the
         // model configuration
-
         for (let i = 0; i < this.modelConfig.assets.animations.length; i++) {
             promises.push(this._loadAsset(this.modelConfig.assets.animations[i], "animation"));
         }
@@ -110,7 +109,8 @@ ripe.CSRAssetManager.prototype.loadAssets = async function(scene, { wireframes =
 
     if (wireframes) this._loadWireframes();
 
-    // load assynchronously high res texture
+
+    // sets the materials using the high resolution textures
     if (this.usesBuild) this.loadHighResTextures();
 };
 
@@ -437,6 +437,9 @@ ripe.CSRAssetManager.prototype.setMaterials = async function(
     autoApply = true,
     isLowRes = false
 ) {
+    // if it does not use a build, return
+    if (!this.usesBuild) return;
+
     for (const part in parts) {
         if (part === "shadow") {
             continue;
