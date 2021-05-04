@@ -517,10 +517,8 @@ ripe.Ripe.prototype.config = async function(brand, model, options = {}) {
 
     // runs the initial update operation, so that all the visuals and children
     // objects are properly updated according to the new configuration
-    const updatePromise = this.update(undefined, {
-        noAwaitLayout: true,
-        reason: "config"
-    });
+    const fullOptions = { ...options, ...{ reason: "config", noAwaitLayout: true } };
+    const updatePromise = this.update(undefined, fullOptions);
     if (options.safe) await updatePromise;
 };
 
@@ -725,10 +723,9 @@ ripe.Ripe.prototype.setPart = async function(part, material, color, events = tru
     // control flow immediately (nothing remaining to be done)
     if (!runUpdate) return;
 
-    const fullOptions = { ...options, ...{ reason: "set part" } };
     // propagates the state change in the internal structures to the
     // children elements of this Ripe Instance
-    const promise = this.update(undefined, fullOptions);
+    const promise = this.update(undefined, { reason: "set part" });
 
     // in case the wait update options is valid (by default) then waits
     // until the update promise is fulfilled

@@ -446,7 +446,9 @@ ripe.CSR.prototype._setupLoops = async function() {
             delta > this.raycastThreshold &&
             !this.element.classList.contains("no-raycast");
 
-        if (canRaycast) {
+        // only raycast if there is is told, and there is a model
+        // to shoot rays against
+        if (canRaycast && this.assetManager.modelScene) {
             this._attemptRaycast(this.raycastEvent);
             this.raycastEvent = null;
         } else {
@@ -870,10 +872,11 @@ ripe.CSR.prototype.changeHighlight = function(part, endColor) {
  */
 ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     const parts = options.parts === undefined ? this.owner.parts : options.parts;
+    const duration = options.duration;
 
     // if it is an immediate transition, perform it and not
     // a complex crossfade
-    if (options.duration === 0) {
+    if (duration === 0) {
         if (type === "material") {
             // crossfade should emit an event
             this.sendEventOnRender = true;
@@ -954,8 +957,6 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     this.crossfadeShader.uniforms.tDiffuse2.value = this.nextSceneFBO.texture;
 
     this.crossfadeShader.uniforms.mixRatio.value = mixRatio;
-
-    const duration = options.duration === undefined ? 500 : options.duration;
 
     if (duration === 0) {
         this.controls.performSimpleRotation();
