@@ -201,7 +201,9 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
         return false;
     }
 
+    // only perform operations if everything has finished loading
     if (!this.csr) return;
+    if (!this.csr.assetManager || !this.csr.assetManager.modelScene) return;
 
     const duration = options.duration === undefined ? 500 : options.duration;
 
