@@ -160,6 +160,9 @@ ripe.CSRInitials.prototype.embossLetters = async function(initials, newEngraving
         changedMaterial = true;
     }
 
+    // something went wrong in the initial material
+    if (!this.letterMaterial) return;
+
     // dispose all letters
     while (this.textMeshes.length > 0) {
         this.disposeLetter(0);
@@ -211,6 +214,8 @@ ripe.CSRInitials.prototype._getLetterMaterial = async function(engraving) {
     let material = engraving.split("_")[0];
     let type = engraving.split("_")[1];
     let letterMaterial = null;
+
+    if (!this.config.materials || !this.config.material.material) return;
 
     // check if material exists, otherwise use the first one
     // it finds

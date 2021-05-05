@@ -725,15 +725,19 @@ ripe.CSR.prototype.updateWireframe = function(value) {
  * Responsible for updating the initials meshes in the scene.
  */
 ripe.CSR.prototype.updateInitials = async function() {
-    // removes all the current scene meshes
-    for (let i = 0; i < this.initials.textMeshes.length; i++) {
-        this.scene.remove(this.initials.textMeshes[i]);
+    if (this.initials.textMeshes) {
+        // removes all the current scene meshes
+        for (let i = 0; i < this.initials.textMeshes.length; i++) {
+            this.scene.remove(this.initials.textMeshes[i]);
+        }
     }
 
     await this.initials.update();
 
-    for (let i = 0; i < this.initials.textMeshes.length; i++) {
-        this.scene.add(this.initials.textMeshes[i]);
+    if (this.initials.textMeshes) {
+        for (let i = 0; i < this.initials.textMeshes.length; i++) {
+            this.scene.add(this.initials.textMeshes[i]);
+        }
     }
 };
 
@@ -879,8 +883,6 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
     if (duration === 0) {
         if (type === "material") {
             // crossfade should emit an event
-            this.sendEventOnRender = true;
-
             await this.assetManager.setMaterials(parts, true);
             this.needsRenderUpdate = true;
             return;
@@ -996,7 +998,6 @@ ripe.CSR.prototype.crossfade = async function(options = {}, type) {
 
             this.forceStopRender = false;
             this.needsRenderUpdate = true;
-            this.sendEventOnRender = true;
 
             return;
         }

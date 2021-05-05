@@ -512,6 +512,8 @@ ripe.CSRControls.prototype.rotationTransition = async function(options) {
         this.currentPan.y = this.referenceCameraTarget.y;
         this.currentRotation.x = finalXRotation;
         this.currentRotation.y = finalYRotation;
+        this.targetRotation.x = finalXRotation;
+        this.targetRotation.y = finalYRotation;
 
         this.performSimpleRotation();
 

@@ -209,17 +209,19 @@ ripe.ConfiguratorCSR.prototype.update = async function(state, options = {}) {
 
     // removes the current text meshes from the scene, and adds the newly
     // generated meshes
-    if (options.reason && options.reason === "set initials") {
-        this.csr.updateInitials();
-        this.csr.needsRenderUpdate = true;
+    if (options.reason && (options.reason === "set initials" || options.reason === "config")) {
+        await this.csr.updateInitials();
     }
 
     if (this.element.classList.contains("crossfading")) return;
 
     // crossfade when changing materials
-    if (options.reason && (options.reason.includes("set part") || options.reason.includes("config"))) {
+    if (options.reason && (options.reason === "set part" || options.reason === "config")) {
         await this.csr.crossfade({ duration: duration, parts: this.owner.parts }, "material");
     }
+
+    this.csr.needsRenderUpdate = true;
+    this.csr.sendEventOnRender = true;
 
     // removes the highlight support from the matched object as a new
     // frame is going to be "calculated" and rendered (not same mask)
