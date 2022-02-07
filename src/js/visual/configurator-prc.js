@@ -1176,6 +1176,8 @@ ripe.ConfiguratorPrc.prototype._loadFrame = async function(view, position, optio
     const size = this.element.dataset.size || this.size;
     const width = this.element.dataset.width || this.width || size;
     const height = this.element.dataset.height || this.height || size;
+    const pixelRatio =
+        this.options.pixelRatio || (typeof window !== "undefined" && window.devicePixelRatio) || 2;
     const backgroundColor = this.element.dataset.background_color || this.backgroundColor;
 
     const draw = options.draw === undefined || options.draw;
@@ -1206,9 +1208,9 @@ ripe.ConfiguratorPrc.prototype._loadFrame = async function(view, position, optio
     const url = this.owner._getImageURL({
         frame: frame,
         format: format,
-        size: size,
-        width: width,
-        height: height,
+        size: size ? parseInt(size * pixelRatio) : size,
+        width: width ? parseInt(width * pixelRatio) : width,
+        height: height ? parseInt(height * pixelRatio) : height,
         background: backgroundColor,
         full: false
     });
